@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Env
+.env
+.venv/
+venv/
+ENV/
+env/
+*.env
+
+# Django stuff
+**/migrations/*
+!**/migrations/__init__.py
+db.sqlite3
+media/
+staticfiles/
+static/
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE settings
+.vscode/
+.idea/
+*.swp
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Bytecode and caches
+*.so
+*.dll
+
+# Coverage / testing
+htmlcov/
+.tox/
+.coverage
+coverage.xml
+.pytest_cache/
+
+# Local configs
+*.local
+*.backup
+*.bak
+*.temp
+
+graphic-mason-479110-d6-a120ba88825f.json
