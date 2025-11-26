@@ -138,7 +138,7 @@ class ProductLeads(models.Model):
     ]
 
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="purchases")
-    user = models.ForeignKey(get_user_model(), null=True, blank=True, on_delete=models.SET_NULL)
+    user = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL)
     full_name = models.CharField(max_length=255)
     email = models.EmailField()
     phone = models.CharField(max_length=20)
