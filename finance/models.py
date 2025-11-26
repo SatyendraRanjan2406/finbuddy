@@ -126,7 +126,7 @@ class Product(models.Model):
 
 
 
-class ProductLeads(models.Model):
+class ProductPurchase(models.Model):
     STATUS_CHOICES = [
         ("PENDING", "Pending"),
         ("OTP_VERIFIED", "OTP Verified"),
