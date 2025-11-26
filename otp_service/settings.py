@@ -195,3 +195,7 @@ DEFAULT_FROM_EMAIL =os.getenv("DEFAULT_FROM_EMAIL", default="no-reply@example.co
 
 # Webhook secret for partner verification
 WEBHOOK_SECRET =os.getenv("WEBHOOK_SECRET")
+
+
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
