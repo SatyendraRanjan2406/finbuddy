@@ -88,6 +88,9 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "otp_service.wsgi.application"
 CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOWED_ORIGINS = [
+    "https://finmitra.co",
+]
 
 
 
