@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "rest_framework_simplejwt",
+    'corsheaders',
     "accounts",
     "finance",
 ]
@@ -64,6 +65,8 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "corsheaders.middleware.CorsMiddleware",
+    "django.middleware.security.SecurityMiddleware",
 ]
 
 ROOT_URLCONF = "otp_service.urls"
@@ -84,6 +87,8 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "otp_service.wsgi.application"
+CORS_ALLOW_CREDENTIALS = True
+
 
 
 # Database
