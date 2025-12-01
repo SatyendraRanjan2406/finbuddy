@@ -712,3 +712,77 @@ curl -X GET http://localhost:8000/api/training/progress/ \
 
 5. **Base URL:** Replace `http://localhost:8000` with your actual server URL in production.
 
+---
+
+## 7. Admin Bulk Question Creation
+
+Admin-only API to add multiple questions (and options) to a training section in one request.
+
+**Endpoint:** `POST /api/training/admin/bulk-questions/`
+
+**Authentication:** Required (admin / superuser JWT)
+
+### CURL Example
+
+```bash
+curl -X POST http://localhost:8000/api/training/admin/bulk-questions/ \
+  -H "Authorization: Bearer YOUR_ADMIN_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "training_id": 1,
+    "questions": [
+      {
+        "question_text": "What is digital banking?",
+        "question_type": "mcq_single",
+        "order": 1,
+        "language": "en",
+        "options": [
+          {"option_text": "Banking only at the branch", "is_correct": false},
+          {"option_text": "Using internet/mobile to access banking services", "is_correct": true},
+          {"option_text": "Only ATM usage", "is_correct": false}
+        ]
+      },
+      {
+        "question_text": "Which of these are digital payment methods?",
+        "question_type": "mcq_multiple",
+        "order": 2,
+        "language": "en",
+        "options": [
+          {"option_text": "UPI", "is_correct": true},
+          {"option_text": "Netbanking", "is_correct": true},
+          {"option_text": "Cash only", "is_correct": false}
+        ]
+      },
+      {
+        "question_text": "Describe one benefit of using UPI for payments.",
+        "question_type": "input",
+        "order": 3,
+        "language": "en"
+      }
+    ]
+  }'
+```
+
+**Request Body:**
+
+- `training_id` (Integer, required): ID of the training section to attach questions to  
+- `questions` (Array, required): List of question objects
+  - `question_text` (String, required)
+  - `question_type` (String, required): `mcq_single`, `mcq_multiple`, `input`, `file`
+  - `order` (Integer, optional): Order of question; if omitted, order is auto-assigned sequentially
+  - `language` (String, optional, default `"en"`)
+  - `options` (Array, optional, MCQ only):
+    - `option_text` (String, required)
+    - `is_correct` (Boolean, optional, default `false`)
+
+**Success Response (201):**
+
+```json
+{
+  "message": "Questions created successfully",
+  "training_id": 1,
+  "question_ids": [10, 11, 12],
+  "count": 3
+}
+```
+

@@ -168,3 +168,41 @@ class SubmitAnswerSerializer(serializers.Serializer):
     input_text = serializers.CharField(required=False, allow_blank=True, help_text="Text input (for input type questions)")
     uploaded_file = serializers.FileField(required=False, help_text="File upload (for file type questions)")
 
+
+class BulkQuestionOptionSerializer(serializers.Serializer):
+    option_text = serializers.CharField()
+    is_correct = serializers.BooleanField(default=False)
+
+
+class BulkQuestionItemSerializer(serializers.Serializer):
+    question_text = serializers.CharField()
+    question_type = serializers.ChoiceField(choices=["mcq_single", "mcq_multiple", "input", "file"])
+    order = serializers.IntegerField(required=False)
+    language = serializers.CharField(required=False, default="en")
+    options = BulkQuestionOptionSerializer(many=True, required=False)
+
+
+class BulkQuestionCreateSerializer(serializers.Serializer):
+    """
+    Serializer for admin bulk question creation.
+
+    Payload example:
+    {
+      "training_id": 1,
+      "questions": [
+        {
+          "question_text": "...",
+          "question_type": "mcq_single",
+          "order": 1,
+          "language": "en",
+          "options": [
+            {"option_text": "A", "is_correct": false},
+            {"option_text": "B", "is_correct": true}
+          ]
+        }
+      ]
+    }
+    """
+    training_id = serializers.IntegerField()
+    questions = BulkQuestionItemSerializer(many=True)
+

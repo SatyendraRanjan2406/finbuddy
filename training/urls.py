@@ -4,7 +4,8 @@ from training.views import (
     TrainingSectionListView,
     TrainingSectionDetailView,
     UserTrainingProgressView,
-    submit_training_answer
+    submit_training_answer,
+    AdminBulkQuestionCreateView,
 )
 
 urlpatterns = [
@@ -13,5 +14,6 @@ urlpatterns = [
     path("sections/<int:id>/", TrainingSectionDetailView.as_view(), name="training-section-detail"),
     path("progress/", UserTrainingProgressView.as_view(), name="user-training-progress"),
     path("submit-answer/", submit_training_answer, name="submit-training-answer"),
+    path("admin/bulk-questions/", AdminBulkQuestionCreateView.as_view(), name="training-admin-bulk-questions"),
 ]
 

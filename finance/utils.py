@@ -55,22 +55,32 @@ def get_onboarding_progress_details(user):
     
     total_steps = len(QUESTIONNAIRE_STEPS)
     completed_count = len(completed_steps)
-    
-    # Determine next step
-    if progress.is_completed:
+
+    # Auto-sync is_completed flag based on actual completed_count
+    if total_steps > 0 and completed_count == total_steps:
+        # All steps done
+        progress.is_completed = True
+        if completed_steps:
+            progress.completed_step = completed_steps[-1]
+        # No further step
         next_step = None
-    elif completed_steps:
-        last_completed = completed_steps[-1]
-        try:
-            idx = QUESTIONNAIRE_STEPS.index(last_completed)
-            if idx < len(QUESTIONNAIRE_STEPS) - 1:
-                next_step = QUESTIONNAIRE_STEPS[idx + 1]
-            else:
-                next_step = None
-        except ValueError:
-            next_step = QUESTIONNAIRE_STEPS[0]
     else:
-        next_step = QUESTIONNAIRE_STEPS[0]
+        # Not fully completed
+        progress.is_completed = False
+        if completed_steps:
+            last_completed = completed_steps[-1]
+            try:
+                idx = QUESTIONNAIRE_STEPS.index(last_completed)
+                if idx < len(QUESTIONNAIRE_STEPS) - 1:
+                    next_step = QUESTIONNAIRE_STEPS[idx + 1]
+                else:
+                    next_step = None
+            except ValueError:
+                next_step = QUESTIONNAIRE_STEPS[0]
+        else:
+            next_step = QUESTIONNAIRE_STEPS[0] if total_steps > 0 else None
+
+    progress.save(update_fields=["is_completed", "completed_step", "current_step"])
     
     return {
         "is_completed": progress.is_completed,

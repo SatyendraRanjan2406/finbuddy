@@ -18,7 +18,8 @@ from training.serializers import (
     TrainingQuestionSerializer,
     UserTrainingProgressSerializer,
     UpdateTrainingProgressSerializer,
-    SubmitAnswerSerializer
+    SubmitAnswerSerializer,
+    BulkQuestionCreateSerializer,
 )
 
 
@@ -362,6 +363,63 @@ class UserTrainingProgressView(APIView):
         
         return Response({"error": "Invalid action"}, status=status.HTTP_400_BAD_REQUEST)
 
+
+class AdminBulkQuestionCreateView(APIView):
+    """
+    POST /api/training/admin/bulk-questions/
+    Admin-only endpoint to add multiple questions (and options) to a section.
+    """
+    permission_classes = [IsAdminUser]
+
+    def post(self, request):
+        serializer = BulkQuestionCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        training_id = serializer.validated_data["training_id"]
+        questions_data = serializer.validated_data["questions"]
+
+        try:
+            training = TrainingSection.objects.get(id=training_id)
+        except TrainingSection.DoesNotExist:
+            return Response(
+                {"error": "Training section not found"}, status=status.HTTP_404_NOT_FOUND
+            )
+
+        created_questions = []
+
+        with transaction.atomic():
+            for idx, q in enumerate(questions_data, start=1):
+                order = q.get("order") or idx
+                question = TrainingQuestion.objects.create(
+                    training=training,
+                    question_text=q["question_text"],
+                    question_type=q["question_type"],
+                    order=order,
+                    language=q.get("language", "en"),
+                )
+
+                # Only create options for MCQ types
+                if q["question_type"] in ["mcq_single", "mcq_multiple"]:
+                    options = q.get("options") or []
+                    for opt in options:
+                        TrainingOption.objects.create(
+                            question=question,
+                            option_text=opt["option_text"],
+                            is_correct=opt.get("is_correct", False),
+                        )
+
+                created_questions.append(question.id)
+
+        return Response(
+            {
+                "message": "Questions created successfully",
+                "training_id": training.id,
+                "question_ids": created_questions,
+                "count": len(created_questions),
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])

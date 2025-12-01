@@ -54,7 +54,7 @@ INSTALLED_APPS = [
     "accounts",
     "finance",
     "training",
-
+    "aichat",
 ]
 
 # Custom User Model
@@ -207,7 +207,7 @@ DEFAULT_FROM_EMAIL =os.getenv("DEFAULT_FROM_EMAIL", default="no-reply@example.co
 
 # Webhook secret for partner verification
 WEBHOOK_SECRET =os.getenv("WEBHOOK_SECRET")
-
+OPENAI_API_KEY=os.getenv("OPENAI_API_KEY")
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
