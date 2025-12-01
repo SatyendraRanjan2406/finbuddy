@@ -13,8 +13,7 @@ from rest_framework.response import Response
 SCOPES = ['https://www.googleapis.com/auth/spreadsheets.readonly']
 
 # Path to Google service account JSON
-SERVICE_ACCOUNT_FILE = "/Users/satyendra/otp_twilio_backend/graphic-mason-479110-d6-a120ba88825f.json"
-
+SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
 SPREADSHEET_ID = '111Wiq4RuQJTJfkY_PdCvr5GBest-3BxpaT8YCFeZ39w'
 
 def populate(request):

@@ -1,3 +1,4 @@
+import os
 import gspread
 import pandas as pd
 from oauth2client.service_account import ServiceAccountCredentials
@@ -7,7 +8,7 @@ from training.models import TrainingSection, TrainingQuestion, TrainingOption
 
 # === Google Sheets Setup ===
 SPREADSHEET_ID = "1gufHMamzNEWC9t1GvhqhDlBlr4LG8aNQ01sN839bGU8"
-SERVICE_ACCOUNT_FILE = "/Users/satyendra/otp_twilio_backend/graphic-mason-479110-d6-a120ba88825f.json"
+SERVICE_ACCOUNT_FILE = os.getenv("SERVICE_ACCOUNT_FILE")
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
