@@ -28,11 +28,26 @@ from finance.serializers import (
 )
 from finance.services.products_util import get_suggested_products_util
 from finance.services.uhfs import calculate_and_store_uhfs
+from finance.utils import update_progress
 
 from .models import Product
 from .serializers import ProductSerializer
 from .pagination import ProductPagination
 
+
+MODULE_STEP_MAP = {
+    "personal_demographic": 1,
+    "income_employment": 2,
+    "banking_financial_access": 3,
+    "credit_liabilities": 4,
+    "savings_insurance": 5,
+    "expenses_obligations": 6,
+    "behavioral_psychometric": 7,
+    "government_scheme_eligibility": 8,
+    "user_financial_literacy": 9
+}
+
+TOTAL_STEPS = 9
 
 class ProductListView(APIView):
     def get(self, request):
@@ -62,6 +77,22 @@ class ProductByNameView(APIView):
         return paginator.get_paginated_response(serializer.data)
 
 
+class ProductDetailView(APIView):
+    """
+    GET /api/finance/products/<id>/ - Get single product details by ID
+    """
+    def get(self, request, id):
+        try:
+            product = Product.objects.get(id=id)
+            serializer = ProductSerializer(product)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Product.DoesNotExist:
+            return Response(
+                {"detail": "Product not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+
 
 class PersonalDemographicView(APIView):
     """
@@ -89,6 +120,8 @@ class PersonalDemographicView(APIView):
             serializer = PersonalDemographicSerializer(personal, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+
+            update_progress(request.user , "personal_demographic" )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except PersonalDemographic.DoesNotExist:
             serializer = PersonalDemographicSerializer(data=request.data)
@@ -142,6 +175,8 @@ class IncomeEmploymentView(APIView):
             serializer = IncomeEmploymentSerializer(income, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "income_employment" )
+
             return Response(serializer.data, status=status.HTTP_200_OK)
         except IncomeEmployment.DoesNotExist:
             serializer = IncomeEmploymentSerializer(data=request.data)
@@ -195,6 +230,8 @@ class BankingFinancialAccessView(APIView):
             serializer = BankingFinancialAccessSerializer(banking, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "banking_financial_access" )
+
             return Response(serializer.data, status=status.HTTP_200_OK)
         except BankingFinancialAccess.DoesNotExist:
             serializer = BankingFinancialAccessSerializer(data=request.data)
@@ -248,6 +285,7 @@ class CreditLiabilitiesView(APIView):
             serializer = CreditLiabilitiesSerializer(credit, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "credit_liabilities" )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except CreditLiabilities.DoesNotExist:
             serializer = CreditLiabilitiesSerializer(data=request.data)
@@ -301,6 +339,7 @@ class SavingsInsuranceView(APIView):
             serializer = SavingsInsuranceSerializer(savings, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "savings_insurance" )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except SavingsInsurance.DoesNotExist:
             serializer = SavingsInsuranceSerializer(data=request.data)
@@ -354,6 +393,7 @@ class ExpensesObligationsView(APIView):
             serializer = ExpensesObligationsSerializer(expenses, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "expenses_obligations" )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except ExpensesObligations.DoesNotExist:
             serializer = ExpensesObligationsSerializer(data=request.data)
@@ -407,6 +447,7 @@ class BehavioralPsychometricView(APIView):
             serializer = BehavioralPsychometricSerializer(behavior, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "behavioral_psychometric" )
             return Response(serializer.data, status=status.HTTP_200_OK)
         except BehavioralPsychometric.DoesNotExist:
             serializer = BehavioralPsychometricSerializer(data=request.data)
@@ -460,6 +501,8 @@ class GovernmentSchemeEligibilityView(APIView):
             serializer = GovernmentSchemeEligibilitySerializer(govt, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            update_progress(request.user , "government_scheme_eligibility" )
+
             return Response(serializer.data, status=status.HTTP_200_OK)
         except GovernmentSchemeEligibility.DoesNotExist:
             serializer = GovernmentSchemeEligibilitySerializer(data=request.data)
@@ -497,8 +540,18 @@ class UHFSScoreView(APIView):
     def get(self, request):
         try:
             uhfs = UHFSScore.objects.get(user=request.user)
-            serializer = UHFSScoreSerializer(uhfs)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            # Return same format as POST response
+            result = {
+                "user_id": str(request.user.id),
+                "components": uhfs.components or {},
+                "weights": {"I": 0.25, "F": 0.25, "R": 0.15, "P": 0.20, "L": 0.15},
+                "composite": float(uhfs.composite) if uhfs.composite else 0.0,
+                "uhfs_score": uhfs.score,
+                "domain_risk": uhfs.domain_risk or {},
+                "overall_risk": uhfs.overall_risk or "Unknown",
+                "last_updated": uhfs.last_updated.isoformat() if uhfs.last_updated else None,
+            }
+            return Response(result, status=status.HTTP_200_OK)
         except UHFSScore.DoesNotExist:
             return Response(
                 {"detail": "UHFS score not calculated yet. Use POST to calculate."},
@@ -530,3 +583,18 @@ def get_suggested_products(request):
     products = get_suggested_products_util(ufhs_score)
     serializer = ProductSerializer(products, many=True)
     return Response({ "products": serializer.data }, status=200)
+
+
+@api_view(["POST"])
+def populate_products(request):
+    """Wrapper for populate function to handle missing dependencies gracefully"""
+    try:
+        from finance.script import populate
+        return populate(request)
+    except ImportError as e:
+        return Response(
+            {"error": f"Required dependencies not installed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+

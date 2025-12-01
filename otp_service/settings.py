@@ -50,8 +50,11 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     'corsheaders',
+    "common",
     "accounts",
     "finance",
+    "training",
+
 ]
 
 # Custom User Model
@@ -90,6 +93,7 @@ WSGI_APPLICATION = "otp_service.wsgi.application"
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "https://finmitra.co",
+    "http://localhost:8080"
 ]
 
 

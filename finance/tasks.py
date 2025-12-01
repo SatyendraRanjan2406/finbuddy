@@ -1,6 +1,10 @@
 from celery import shared_task
-import pytesseract
-from PIL import Image
+try:
+    import pytesseract
+    from PIL import Image
+    PYTESSERACT_AVAILABLE = True
+except ImportError:
+    PYTESSERACT_AVAILABLE = False
 import requests
 from django.conf import settings
 from .models import ProductPurchase
@@ -19,30 +23,33 @@ def run_ocr_and_notify(purchase_id):
     p = ProductPurchase.objects.get(id=purchase_id)
     # Best-effort OCR: use Tesseract on the downloaded files (only for image/pdf preconverted)
     ocr_result = {}
-    try:
-        # download id_proof file to temp
-        id_url = p.id_proof.url
-        r = requests.get(id_url, stream=True)
-        tmp_path = f"/tmp/id_proof_{p.id}.img"
-        with open(tmp_path, "wb") as f:
-            for chunk in r.iter_content(8192):
-                f.write(chunk)
+    if not PYTESSERACT_AVAILABLE:
+        ocr_result["error"] = "pytesseract not available"
+    else:
+        try:
+            # download id_proof file to temp
+            id_url = p.id_proof.url
+            r = requests.get(id_url, stream=True)
+            tmp_path = f"/tmp/id_proof_{p.id}.img"
+            with open(tmp_path, "wb") as f:
+                for chunk in r.iter_content(8192):
+                    f.write(chunk)
 
-        text = pytesseract.image_to_string(Image.open(tmp_path))
-        ocr_result["id_proof_text"] = text
+            text = pytesseract.image_to_string(Image.open(tmp_path))
+            ocr_result["id_proof_text"] = text
 
-        # naive PAN regex
-        import re
-        pan_match = re.search(r"[A-Z]{5}[0-9]{4}[A-Z]", text)
-        if pan_match:
-            p.pan_number = pan_match.group(0)
+            # naive PAN regex
+            import re
+            pan_match = re.search(r"[A-Z]{5}[0-9]{4}[A-Z]", text)
+            if pan_match:
+                p.pan_number = pan_match.group(0)
 
-        aadhaar_match = re.search(r"\b\d{4}\s?\d{4}\s?\d{4}\b", text)
-        if aadhaar_match:
-            p.aadhaar_number = aadhaar_match.group(0).replace(" ", "")
+            aadhaar_match = re.search(r"\b\d{4}\s?\d{4}\s?\d{4}\b", text)
+            if aadhaar_match:
+                p.aadhaar_number = aadhaar_match.group(0).replace(" ", "")
 
-    except Exception as e:
-        ocr_result["error"] = str(e)
+        except Exception as e:
+            ocr_result["error"] = str(e)
 
     p.ocr_data = ocr_result
     p.status = "KYC_IN_PROGRESS"

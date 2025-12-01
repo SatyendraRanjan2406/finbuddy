@@ -12,10 +12,25 @@ from rest_framework.permissions import IsAdminUser, IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 
-from .models import ProductPurchase, Product
-from .serializers import ProductPurchaseSerializer, ProductSerializer, OTPVerifySerializer
+from .models import ProductPurchase, Product, UserProduct, UserPremiumPayment
+from .serializers import (
+    ProductPurchaseSerializer, 
+    ProductSerializer, 
+    OTPVerifySerializer,
+    ProductPurchaseInitiateSerializer,
+    UserProductSerializer,
+    UserPremiumPaymentSerializer,
+    ProductPurchaseDetailSerializer
+)
 
-from .tasks import run_ocr_and_notify, send_sms_otp  # Celery tasks
+from .tasks import (
+    run_ocr_and_notify, 
+    send_sms_otp,
+    run_notification_for_admin_decision,
+    handle_partner_payload
+)  # Celery tasks
+from datetime import date, timedelta
+from django.utils import timezone
 
 # Mobile-friendly upload: allow large files, multipart/form-data
 @api_view(["POST"])
@@ -157,3 +172,223 @@ def partner_webhook(request):
     # process partner data asynchronously
     handle_partner_payload.delay(data)
     return Response({"message": "accepted"}, status=200)
+
+
+@api_view(["POST"])
+@parser_classes([MultiPartParser, FormParser, JSONParser])
+@permission_classes([IsAuthenticated])
+def initiate_product_purchase(request):
+    """
+    Initiate product purchase - creates records in ProductPurchase, UserProduct, and UserPremiumPayment
+    with status = INITIATED.
+    
+    Accepts both JSON and multipart/form-data (for file uploads).
+    
+    Body (JSON or form-data): {
+        "product_id": <int>,
+        "premium_amount": <decimal>,
+        "premium_frequency": "MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY",
+        "tenure_years": <int> (optional),
+        "auto_renew": <bool> (default: True),
+        "policy_number": <string> (optional),
+        "maturity_date": "YYYY-MM-DD" (optional),
+        "next_premium_due": "YYYY-MM-DD" (optional),
+        "id_proof": <file> (optional),
+        "address_proof": <file> (optional),
+        "video_verification": <file> (optional),
+        "full_name": <string> (optional),
+        "email": <email> (optional),
+        "phone": <string> (optional)
+    }
+    """
+    serializer = ProductPurchaseInitiateSerializer(data=request.data)
+    if not serializer.is_valid():
+        return Response(serializer.errors, status=400)
+    
+    product_id = serializer.validated_data["product_id"]
+    premium_amount = serializer.validated_data["premium_amount"]
+    premium_frequency = serializer.validated_data["premium_frequency"]
+    tenure_years = serializer.validated_data.get("tenure_years")
+    auto_renew = serializer.validated_data.get("auto_renew", True)
+    policy_number = serializer.validated_data.get("policy_number")
+    provided_maturity_date = serializer.validated_data.get("maturity_date")
+    provided_next_premium_due = serializer.validated_data.get("next_premium_due")
+    
+    # KYC file fields
+    id_proof = serializer.validated_data.get("id_proof")
+    address_proof = serializer.validated_data.get("address_proof")
+    video_verification = serializer.validated_data.get("video_verification")
+    
+    # Additional user info (optional, will use authenticated user if not provided)
+    provided_full_name = serializer.validated_data.get("full_name")
+    provided_email = serializer.validated_data.get("email")
+    provided_phone = serializer.validated_data.get("phone")
+    
+    try:
+        product = Product.objects.get(id=product_id)
+    except Product.DoesNotExist:
+        return Response({"error": "Product not found"}, status=404)
+    
+    user = request.user
+    
+    # Calculate next premium due date based on frequency (if not provided)
+    today = date.today()
+    if provided_next_premium_due:
+        next_due = provided_next_premium_due
+    else:
+        if premium_frequency == "MONTHLY":
+            next_due = today + timedelta(days=30)
+        elif premium_frequency == "QUARTERLY":
+            next_due = today + timedelta(days=90)
+        elif premium_frequency == "HALF_YEARLY":
+            next_due = today + timedelta(days=180)
+        else:  # YEARLY
+            next_due = today + timedelta(days=365)
+    
+    # Calculate maturity date if tenure is provided (if not explicitly provided)
+    maturity_date = provided_maturity_date
+    if not maturity_date and tenure_years:
+        maturity_date = today + timedelta(days=365 * tenure_years)
+    
+    # Create ProductPurchase with INITIATED status
+    # Use provided values or fall back to authenticated user's data
+    purchase = ProductPurchase.objects.create(
+        product=product,
+        user=user,
+        full_name=provided_full_name or (user.get_full_name() or user.username),
+        email=provided_email or (user.email or ""),
+        phone=provided_phone or (user.phone or ""),
+        id_proof=id_proof,
+        address_proof=address_proof,
+        video_verification=video_verification,
+        status="INITIATED"
+    )
+    
+    # Create UserProduct with INITIATED status
+    user_product = UserProduct.objects.create(
+        user=user,
+        product=product,
+        purchase_date=timezone.now(),
+        premium_amount=premium_amount,
+        premium_frequency=premium_frequency,
+        next_premium_due=next_due,
+        tenure_years=tenure_years,
+        maturity_date=maturity_date,
+        auto_renew=auto_renew,
+        policy_number=policy_number,
+        status="INITIATED"
+    )
+    
+    # Create UserPremiumPayment with INITIATED status
+    premium_payment = UserPremiumPayment.objects.create(
+        user_product=user_product,
+        premium_amount=premium_amount,
+        premium_date=next_due,
+        payment_status="INITIATED"
+    )
+    
+    return Response({
+        "message": "Product purchase initiated successfully",
+        "purchase_id": purchase.id,
+        "user_product_id": user_product.id,
+        "premium_payment_id": premium_payment.id,
+        "status": "INITIATED"
+    }, status=201)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_purchases(request):
+    """
+    GET /api/finance/purchase/
+    Get all product purchases for the authenticated user.
+    
+    Query Parameters (optional):
+    - status: Filter by status (e.g., ?status=INITIATED)
+    - product_id: Filter by product ID (e.g., ?product_id=1)
+    """
+    user = request.user
+    purchases = ProductPurchase.objects.filter(user=user).order_by('-created_at')
+    
+    # Filter by status if provided
+    status_filter = request.query_params.get('status')
+    if status_filter:
+        purchases = purchases.filter(status=status_filter)
+    
+    # Filter by product_id if provided
+    product_id_filter = request.query_params.get('product_id')
+    if product_id_filter:
+        try:
+            purchases = purchases.filter(product_id=int(product_id_filter))
+        except ValueError:
+            return Response({"error": "Invalid product_id"}, status=400)
+    
+    serializer = ProductPurchaseDetailSerializer(purchases, many=True)
+    return Response({
+        "count": len(serializer.data),
+        "purchases": serializer.data
+    }, status=200)
+
+
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def get_user_purchase_detail(request, purchase_id):
+    """
+    GET /api/finance/purchase/<purchase_id>/
+    Get detailed information about a specific product purchase for the authenticated user.
+    """
+    try:
+        purchase = ProductPurchase.objects.get(id=purchase_id, user=request.user)
+    except ProductPurchase.DoesNotExist:
+        return Response({"error": "Purchase not found"}, status=404)
+    
+    serializer = ProductPurchaseDetailSerializer(purchase)
+    return Response(serializer.data, status=200)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def complete_product_purchase(request, purchase_id):
+    """
+    Complete product purchase - updates status to SUCCESS for ProductPurchase, UserProduct, and UserPremiumPayment.
+    
+    This endpoint should be called after payment is confirmed.
+    """
+    try:
+        purchase = ProductPurchase.objects.get(id=purchase_id, user=request.user)
+    except ProductPurchase.DoesNotExist:
+        return Response({"error": "Purchase not found"}, status=404)
+    
+    # Update ProductPurchase status to SUCCESS
+    purchase.status = "SUCCESS"
+    purchase.save(update_fields=["status"])
+    
+    # Find associated UserProduct and update status
+    try:
+        user_product = UserProduct.objects.get(
+            user=request.user,
+            product=purchase.product,
+            status="INITIATED"
+        )
+        user_product.status = "SUCCESS"
+        user_product.save(update_fields=["status"])
+        
+        # Update associated premium payment
+        premium_payment = UserPremiumPayment.objects.filter(
+            user_product=user_product,
+            payment_status="INITIATED"
+        ).first()
+        
+        if premium_payment:
+            premium_payment.payment_status = "SUCCESS"
+            premium_payment.paid_on = timezone.now()
+            premium_payment.save(update_fields=["payment_status", "paid_on"])
+        
+        return Response({
+            "message": "Product purchase completed successfully",
+            "purchase_id": purchase.id,
+            "user_product_id": user_product.id,
+            "status": "SUCCESS"
+        }, status=200)
+    except UserProduct.DoesNotExist:
+        return Response({"error": "UserProduct not found"}, status=404)

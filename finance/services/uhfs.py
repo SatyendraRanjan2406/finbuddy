@@ -462,11 +462,24 @@ def calculate_and_store_uhfs(user) -> Dict[str, Any]:
 
     overall = _overall_risk(domain_classes)
 
-    # Persist UHFSScore (create or update)
+    # Prepare components dict
+    components_dict = {
+        "I": round(I, 5),
+        "F": round(F, 5),
+        "R": round(R, 5),
+        "P": round(P, 5),
+        "L": round(L, 5),
+    }
+
+    # Persist UHFSScore (create or update) with all details
     score_obj, created = UHFSScore.objects.update_or_create(
         user=user,
         defaults={
             "score": int(uhfs_value),
+            "components": components_dict,
+            "composite": round(composite, 5),
+            "domain_risk": domain_classes,
+            "overall_risk": overall,
             "last_updated": timezone.now(),
         },
     )
@@ -474,13 +487,7 @@ def calculate_and_store_uhfs(user) -> Dict[str, Any]:
     # Build result dict
     result = {
         "user_id": str(user.id),
-        "components": {
-            "I": round(I, 5),
-            "F": round(F, 5),
-            "R": round(R, 5),
-            "P": round(P, 5),
-            "L": round(L, 5),
-        },
+        "components": components_dict,
         "weights": {"I": 0.25, "F": 0.25, "R": 0.15, "P": 0.20, "L": 0.15},
         "composite": round(composite, 5),
         "uhfs_score": int(uhfs_value),

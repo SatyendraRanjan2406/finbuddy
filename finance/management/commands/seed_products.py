@@ -12,9 +12,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         products_data = [
             {
+                "category": "Savings & Liquidity",
+                "name": "Pradhan Mantri Jan-Dhan Yojana (PMJDY)",
+                "scheme_description": "Pradhan Mantri Jan-Dhan Yojana (PMJDY). A zero-balance savings account offering basic banking, insurance, and overdraft access for every citizen.",
+                "purpose": "Build emergency corpus",
                 "behavioral_purpose_tag": "Build Emergency Corpus",
                 "minimum_investment": "₹0",
-                "eligibility": "Pradhan Mantri Jan-Dhan Yojana (PMJDY). A zero-balance savings account offering basic banking, insurance, and overdraft access for every citizen. Eligibility: Any Indian citizen (≥10 years) without existing bank account",
+                "eligibility": "Any Indian citizen (≥10 years) without existing bank account",
                 "integration_type": "APISetu / Account Aggregator (AA)",
                 "digital_verification_availability": "Verified API available",
                 "official_url": "https://pmjdy.gov.in",

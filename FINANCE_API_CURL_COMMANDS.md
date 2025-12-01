@@ -27,6 +27,7 @@ Authorization: Bearer <your_access_token_here>
 7. [Behavioral Psychometric](#7-behavioral-psychometric)
 8. [Government Scheme Eligibility](#8-government-scheme-eligibility)
 9. [UHFS Score](#9-uhfs-score)
+10. [Product Purchase](#10-product-purchase)
 
 ---
 
@@ -690,4 +691,470 @@ curl -X POST http://localhost:8000/api/finance/uhfs-score/ \
 4. **Optional Fields**: Most fields are optional (null=True, blank=True), so you can submit partial data and update later.
 
 5. **Base URL**: Replace `http://localhost:8000` with your actual server URL in production.
+
+---
+
+## 10. Product Purchase
+
+### POST - Initiate Product Purchase
+Initiate a product purchase. This creates records in ProductPurchase, UserProduct, and UserPremiumPayment tables with status = INITIATED.
+
+#### Basic Request (Minimum Required Fields)
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 1,
+    "premium_amount": "5000.00",
+    "premium_frequency": "MONTHLY"
+  }'
+```
+
+#### Complete Request (All Possible Fields - JSON)
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 1,
+    "premium_amount": "5000.00",
+    "premium_frequency": "MONTHLY",
+    "tenure_years": 5,
+    "auto_renew": true,
+    "policy_number": "POL-2024-001234",
+    "maturity_date": "2029-12-01",
+    "next_premium_due": "2024-12-31",
+    "full_name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1234567890"
+  }'
+```
+
+#### Complete Request with KYC Files (Multipart Form Data)
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "tenure_years=5" \
+  -F "auto_renew=true" \
+  -F "policy_number=POL-2024-001234" \
+  -F "maturity_date=2029-12-01" \
+  -F "next_premium_due=2024-12-31" \
+  -F "full_name=John Doe" \
+  -F "email=john.doe@example.com" \
+  -F "phone=+1234567890" \
+  -F "id_proof=@/path/to/id_proof.pdf" \
+  -F "address_proof=@/path/to/address_proof.pdf" \
+  -F "video_verification=@/path/to/video.mp4"
+```
+
+#### Request with Only KYC Files (Minimal)
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "id_proof=@/path/to/aadhaar.pdf" \
+  -F "address_proof=@/path/to/utility_bill.pdf" \
+  -F "video_verification=@/path/to/selfie_video.mp4"
+```
+
+**Request Body Fields:**
+
+**Required Fields:**
+- `product_id` (Integer, required): ID of the product to purchase
+- `premium_amount` (Decimal, required): Premium amount per payment (e.g., "5000.00")
+- `premium_frequency` (String, required): Frequency of premium payments
+  - Options: `"MONTHLY"`, `"QUARTERLY"`, `"HALF_YEARLY"`, `"YEARLY"`
+
+**Optional Fields:**
+- `tenure_years` (Integer, optional): Tenure in years. If provided, maturity_date will be calculated automatically
+- `auto_renew` (Boolean, optional): Auto-renewal setting (default: `true`)
+- `policy_number` (String, optional): Policy number if available (max 100 characters)
+- `maturity_date` (Date, optional): Maturity date in format "YYYY-MM-DD". If not provided and tenure_years is set, it will be calculated automatically
+- `next_premium_due` (Date, optional): Next premium due date in format "YYYY-MM-DD". If not provided, it will be calculated automatically based on premium_frequency
+
+**Optional KYC File Fields (use multipart/form-data):**
+- `id_proof` (File, optional): ID proof document (Aadhaar/PAN/Driving License). Accepts: PDF, JPG, PNG
+- `address_proof` (File, optional): Address proof document. Accepts: PDF, JPG, PNG
+- `video_verification` (File, optional): Video verification file. Accepts: MP4, MOV, AVI
+
+**Optional User Information Fields:**
+- `full_name` (String, optional): Full name. If not provided, uses authenticated user's full name or username
+- `email` (Email, optional): Email address. If not provided, uses authenticated user's email
+- `phone` (String, optional): Phone number. If not provided, uses authenticated user's phone
+
+**Note:** 
+- For file uploads, use `multipart/form-data` content type (automatically set when using `-F` flag in curl)
+- For JSON-only requests (without files), use `application/json` content type
+- The endpoint accepts both JSON and multipart/form-data formats
+
+**Success Response (201):**
+```json
+{
+  "message": "Product purchase initiated successfully",
+  "purchase_id": 1,
+  "user_product_id": 1,
+  "premium_payment_id": 1,
+  "status": "INITIATED"
+}
+```
+
+### GET - Get User Purchases
+Get all product purchases for the authenticated user.
+
+```bash
+curl -X GET http://localhost:8000/api/finance/purchase/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json"
+```
+
+**Query Parameters (optional):**
+- `status`: Filter by status (e.g., `?status=INITIATED`, `?status=SUCCESS`)
+- `product_id`: Filter by product ID (e.g., `?product_id=1`)
+
+**Examples with filters:**
+```bash
+# Get only INITIATED purchases
+curl -X GET "http://localhost:8000/api/finance/purchase/?status=INITIATED" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
+
+# Get purchases for a specific product
+curl -X GET "http://localhost:8000/api/finance/purchase/?product_id=1" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
+
+# Combine filters
+curl -X GET "http://localhost:8000/api/finance/purchase/?status=SUCCESS&product_id=1" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
+```
+
+**Success Response (200):**
+```json
+{
+  "count": 2,
+  "purchases": [
+    {
+      "id": 1,
+      "product": 1,
+      "product_name": "Life Insurance Plan",
+      "product_details": {
+        "id": 1,
+        "name": "Life Insurance Plan",
+        "category": "Insurance",
+        ...
+      },
+      "user": "ae661a6b-1be4-4c5d-b571-13876308beba",
+      "full_name": "John Doe",
+      "email": "john.doe@example.com",
+      "phone": "+1234567890",
+      "id_proof": "https://bucket.s3.amazonaws.com/kyc/id_proofs/johndoe/2024-12-01/file.pdf",
+      "address_proof": "https://bucket.s3.amazonaws.com/kyc/address_proofs/johndoe/2024-12-01/file.pdf",
+      "video_verification": "https://bucket.s3.amazonaws.com/kyc/videos/johndoe/2024-12-01/video.mp4",
+      "status": "INITIATED",
+      "pan_number": null,
+      "aadhaar_number": null,
+      "ocr_data": null,
+      "otp_verified": false,
+      "admin_comments": null,
+      "created_at": "2024-12-01T10:30:00Z",
+      "updated_at": "2024-12-01T10:30:00Z",
+      "user_product": {
+        "id": 1,
+        "user": "ae661a6b-1be4-4c5d-b571-13876308beba",
+        "product": 1,
+        "product_name": "Life Insurance Plan",
+        "policy_number": "POL-2024-001234",
+        "purchase_date": "2024-12-01T10:30:00Z",
+        "premium_amount": "5000.00",
+        "premium_frequency": "MONTHLY",
+        "next_premium_due": "2024-12-31",
+        "tenure_years": 5,
+        "maturity_date": "2029-12-01",
+        "auto_renew": true,
+        "status": "INITIATED",
+        "created_at": "2024-12-01T10:30:00Z",
+        "updated_at": "2024-12-01T10:30:00Z"
+      },
+      "premium_payments": [
+        {
+          "id": 1,
+          "user_product": 1,
+          "user_product_details": {...},
+          "premium_amount": "5000.00",
+          "premium_date": "2024-12-31",
+          "paid_on": null,
+          "payment_status": "INITIATED",
+          "transaction_id": null,
+          "created_at": "2024-12-01T10:30:00Z",
+          "updated_at": "2024-12-01T10:30:00Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+### GET - Get User Purchase Detail
+Get detailed information about a specific product purchase.
+
+```bash
+curl -X GET http://localhost:8000/api/finance/purchase/1/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json"
+```
+
+**Success Response (200):**
+```json
+{
+  "id": 1,
+  "product": 1,
+  "product_name": "Life Insurance Plan",
+  "product_details": {...},
+  "user": "ae661a6b-1be4-4c5d-b571-13876308beba",
+  "full_name": "John Doe",
+  "email": "john.doe@example.com",
+  "phone": "+1234567890",
+  "id_proof": "https://bucket.s3.amazonaws.com/kyc/id_proofs/johndoe/2024-12-01/file.pdf",
+  "address_proof": "https://bucket.s3.amazonaws.com/kyc/address_proofs/johndoe/2024-12-01/file.pdf",
+  "video_verification": "https://bucket.s3.amazonaws.com/kyc/videos/johndoe/2024-12-01/video.mp4",
+  "status": "INITIATED",
+  "user_product": {...},
+  "premium_payments": [...]
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "Purchase not found"
+}
+```
+
+### POST - Complete Product Purchase
+Complete a product purchase. Updates status to SUCCESS for ProductPurchase, UserProduct, and UserPremiumPayment. This should be called after payment is confirmed.
+
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/1/complete/ \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  -H "Content-Type: application/json"
+```
+
+**Success Response (200):**
+```json
+{
+  "message": "Product purchase completed successfully",
+  "purchase_id": 1,
+  "user_product_id": 1,
+  "status": "SUCCESS"
+}
+```
+
+**Error Response (404):**
+```json
+{
+  "error": "Purchase not found"
+}
+```
+
+### Complete Purchase Flow Example
+
+#### Option 1: With KYC Files (Recommended for Production)
+```bash
+# Step 1: Initiate purchase with KYC files (status = INITIATED)
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "tenure_years=5" \
+  -F "auto_renew=true" \
+  -F "policy_number=POL-2024-001234" \
+  -F "maturity_date=2029-12-01" \
+  -F "next_premium_due=2024-12-31" \
+  -F "full_name=John Doe" \
+  -F "email=john.doe@example.com" \
+  -F "phone=+1234567890" \
+  -F "id_proof=@/path/to/aadhaar.pdf" \
+  -F "address_proof=@/path/to/utility_bill.pdf" \
+  -F "video_verification=@/path/to/selfie_video.mp4"
+
+# Step 2: Process payment (your payment gateway integration)
+# ... payment processing ...
+
+# Step 3: Complete purchase (status = SUCCESS)
+curl -X POST http://localhost:8000/api/finance/purchase/1/complete/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+#### Option 2: Without Files (JSON Only)
+```bash
+# Step 1: Initiate purchase (status = INITIATED)
+# Using all possible fields (JSON format)
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 1,
+    "premium_amount": "5000.00",
+    "premium_frequency": "MONTHLY",
+    "tenure_years": 5,
+    "auto_renew": true,
+    "policy_number": "POL-2024-001234",
+    "maturity_date": "2029-12-01",
+    "next_premium_due": "2024-12-31",
+    "full_name": "John Doe",
+    "email": "john.doe@example.com",
+    "phone": "+1234567890"
+  }'
+
+# Step 2: Process payment (your payment gateway integration)
+# ... payment processing ...
+
+# Step 3: Complete purchase (status = SUCCESS)
+curl -X POST http://localhost:8000/api/finance/purchase/1/complete/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+### Examples with Different Premium Frequencies
+
+#### Monthly Premium
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 1,
+    "premium_amount": "2000.00",
+    "premium_frequency": "MONTHLY",
+    "tenure_years": 10,
+    "auto_renew": true
+  }'
+```
+
+#### Quarterly Premium
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 2,
+    "premium_amount": "6000.00",
+    "premium_frequency": "QUARTERLY",
+    "tenure_years": 5,
+    "auto_renew": false
+  }'
+```
+
+#### Half-Yearly Premium
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 3,
+    "premium_amount": "12000.00",
+    "premium_frequency": "HALF_YEARLY",
+    "tenure_years": 3,
+    "policy_number": "POL-2024-HY-001"
+  }'
+```
+
+#### Yearly Premium
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 4,
+    "premium_amount": "24000.00",
+    "premium_frequency": "YEARLY",
+    "tenure_years": 15,
+    "maturity_date": "2039-12-01",
+    "next_premium_due": "2025-12-01",
+    "auto_renew": true
+  }'
+```
+
+### File Upload Examples
+
+#### Upload Only ID Proof
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "id_proof=@/path/to/aadhaar_card.pdf"
+```
+
+#### Upload ID Proof and Address Proof
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "id_proof=@/path/to/pan_card.jpg" \
+  -F "address_proof=@/path/to/electricity_bill.pdf"
+```
+
+#### Upload All KYC Documents
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "tenure_years=5" \
+  -F "id_proof=@/path/to/aadhaar.pdf" \
+  -F "address_proof=@/path/to/utility_bill.pdf" \
+  -F "video_verification=@/path/to/selfie_video.mp4"
+```
+
+#### Upload with Image Files (JPG/PNG)
+```bash
+curl -X POST http://localhost:8000/api/finance/purchase/initiate/ \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F "product_id=1" \
+  -F "premium_amount=5000.00" \
+  -F "premium_frequency=MONTHLY" \
+  -F "id_proof=@/path/to/aadhaar_front.jpg" \
+  -F "address_proof=@/path/to/aadhaar_back.jpg"
+```
+
+**File Upload Notes:**
+- Use `-F` flag in curl for file uploads (automatically sets `multipart/form-data`)
+- File paths should be absolute or relative to current directory
+- Supported formats:
+  - **Documents**: PDF, JPG, JPEG, PNG
+  - **Videos**: MP4, MOV, AVI
+- File size limits depend on your Django settings (default is usually 2.5MB)
+- All file fields are optional - you can upload none, some, or all of them
+
+**File Organization in S3:**
+Files are automatically organized in S3 bucket with the following structure:
+- **ID Proof**: `kyc/id_proofs/{username}/{YYYY-MM-DD}/filename`
+- **Address Proof**: `kyc/address_proofs/{username}/{YYYY-MM-DD}/filename`
+- **Video Verification**: `kyc/videos/{username}/{YYYY-MM-DD}/filename`
+
+Example S3 paths:
+- `kyc/id_proofs/johndoe/2024-12-01/aadhaar_card.pdf`
+- `kyc/address_proofs/johndoe/2024-12-01/utility_bill.pdf`
+- `kyc/videos/johndoe/2024-12-01/selfie_video.mp4`
+
+This organization makes it easy to:
+- Find all files for a specific user
+- Organize files by date
+- Keep different file types in separate folders
+
+**Note:**
+- The initiate endpoint creates records in all three tables (ProductPurchase, UserProduct, UserPremiumPayment) with status = INITIATED
+- After payment confirmation, call the complete endpoint to update all statuses to SUCCESS
+- If payment fails, you can manually update the status to FAILURE via admin or create a separate endpoint
 

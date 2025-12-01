@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,6 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from accounts.models import PhoneOTP
 from accounts.serializers import SendOTPSerializer, VerifyOTPSerializer
 from accounts.services import generate_otp, send_otp_via_twilio
+from finance.utils import get_onboarding_progress_details
 
 
 User = get_user_model()
@@ -87,12 +87,16 @@ class VerifyOTPView(APIView):
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
+        # Get onboarding progress details
+        onboarding_details = get_onboarding_progress_details(user)
+
         return Response(
             {
                 "detail": "OTP verified.",
                 "access": str(access_token),
                 "refresh": str(refresh),
                 "user": {"id": str(user.id), "phone_number": user.username},
+                "onboarding": onboarding_details,
             },
             status=status.HTTP_200_OK,
         )

@@ -1,5 +1,4 @@
 from django.urls import path
-from finance.script import populate
 from finance.views import (
     PersonalDemographicView,
     IncomeEmploymentView,
@@ -7,12 +6,14 @@ from finance.views import (
     CreditLiabilitiesView,
     ProductByNameView,
     ProductListView,
+    ProductDetailView,
     SavingsInsuranceView,
     ExpensesObligationsView,
     BehavioralPsychometricView,
     GovernmentSchemeEligibilityView,
     UHFSScoreView,
     get_suggested_products,
+    populate_products,
     
 )
 
@@ -25,7 +26,9 @@ from .search_views import (
 
 from .purchase_views import (
     apply_for_product, verify_otp, application_status,
-    admin_approve, partner_webhook
+    admin_approve, partner_webhook,
+    initiate_product_purchase, complete_product_purchase,
+    get_user_purchases, get_user_purchase_detail
 )
 
 
@@ -41,6 +44,7 @@ urlpatterns = [
     path("uhfs-score/", UHFSScoreView.as_view(), name="uhfs-score"),
 
     path("products/", ProductListView.as_view(), name="product-list"),
+    path("products/<int:id>/", ProductDetailView.as_view(), name="product-detail"),
     path("products/by-name/<str:name>/", ProductByNameView.as_view(), name="product-by-name"),
 
     # Search Views
@@ -51,12 +55,18 @@ urlpatterns = [
 
     path("products/suggested/", get_suggested_products),
 
-    path("populate/" , populate),
+    path("populate/" , populate_products),
 
     path("apply/", apply_for_product),
     path("apply/verify-otp/", verify_otp),
     path("applications/<int:application_id>/status/", application_status),
     path("applications/<int:application_id>/admin-action/", admin_approve),
     path("partner/webhook/", partner_webhook),
+    
+    # Product purchase endpoints
+    path("purchase/", get_user_purchases, name="get-user-purchases"),
+    path("purchase/initiate/", initiate_product_purchase, name="initiate-product-purchase"),
+    path("purchase/<int:purchase_id>/", get_user_purchase_detail, name="get-user-purchase-detail"),
+    path("purchase/<int:purchase_id>/complete/", complete_product_purchase, name="complete-product-purchase"),
 ]
 
