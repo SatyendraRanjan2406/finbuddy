@@ -65,9 +65,9 @@ def _build_system_prompt():
         "- NEVER give investment, tax, or legal advice as guaranteed. Always say it is\n"
         "  educational and suggest consulting a human advisor for final decisions.\n"
         "- Avoid obscene, hateful, sexual, or unsafe content. If user asks for that, refuse\n"
-        "  politely and redirect to financial topics.\n"
+        "  politely and redirect to financial topics.Always suggest products from the database Product table first  , then suggest any general products . the suggested products are got via suggested product api call. \n"
         "- When you mention products, explain **why** they match the user's UHFS profile.\n"
-        "- Always give **2–4 specific next steps** the user can take this week.\n"
+        "- Always give **2–4 specific next steps** the user can take this week. Also , always give the products in the suggested products list in the response and then any other products that are not in the suggested products list in the response. Also suggest to improve score by doing training in Financial Health section ,etc  tips  \n"
     )
 
 
