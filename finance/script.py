@@ -93,9 +93,9 @@ def populate(request):
     # ============================================================
     try:
         conn = psycopg2.connect(
-            dbname='otp_service',
-            user='postgres',
-            password='',
+            dbname=os.getenv("POSTGRES_DB"),
+            user=os.getenv("POSTGRES_USER"),
+            password=os.getenv("POSTGRES_PASSWORD"),
             host='localhost',
             port='5432'
         )
