@@ -14,6 +14,7 @@ from finance.models import UHFSScore
 from finance.services.uhfs import calculate_and_store_uhfs
 from finance.services.products_util import get_suggested_products_util
 from finance.serializers import ProductSerializer
+from training.models import TrainingSection
 
 from .models import ChatSession, ChatMessage, ChatAttachment
 from .serializers import (
@@ -61,6 +62,29 @@ def _get_uhfs_and_products(user):
     return uhfs_score, uhfs_components, overall_risk, suggested_products
 
 
+def _get_training_sections_context():
+    """
+    Provide active training sections so FinMate can recommend the right modules.
+    """
+    sections = TrainingSection.objects.filter(is_active=True).order_by("order", "id")
+    context_sections = []
+    for section in sections:
+        context_sections.append(
+            {
+                "id": section.id,
+                "title": section.title,
+                "description": section.description or "",
+                "score": section.score,
+                "order": section.order,
+                "content_types": section.get_available_content_types(),
+                "has_video": section.has_video(),
+                "has_audio": section.has_audio(),
+                "has_text": section.has_text(),
+            }
+        )
+    return context_sections
+
+
 def _build_system_prompt(language_instruction=None):
     """
     System prompt for responsible FinMate behaviour.
@@ -90,12 +114,21 @@ def _build_system_prompt(language_instruction=None):
     return prompt
 
 
-def _build_context_block(uhfs_score, uhfs_components, overall_risk, suggested_products):
+def _build_context_block(
+    uhfs_score,
+    uhfs_components,
+    overall_risk,
+    suggested_products,
+    training_sections=None,
+):
     return {
         "uhfs_score": uhfs_score,
         "uhfs_components": uhfs_components,
         "overall_risk": overall_risk,
         "suggested_products": suggested_products,
+        "training_sections": training_sections
+        if training_sections is not None
+        else _get_training_sections_context(),
     }
 
 
@@ -129,6 +162,7 @@ def _generate_finmate_ai_reply(session, message_text, language_instruction=None)
         session.uhfs_components,
         session.uhfs_overall_risk,
         session.suggested_products_snapshot or [],
+        training_sections=_get_training_sections_context(),
     )
 
     history = []
@@ -294,6 +328,7 @@ class FinMateChatView(APIView):
             session.uhfs_components,
             session.uhfs_overall_risk,
             session.suggested_products_snapshot or [],
+            training_sections=_get_training_sections_context(),
         )
 
         # Build conversation history (last 10 messages)
