@@ -269,22 +269,26 @@ s3 = boto3.client("s3", region_name=AWS_REGION)
 POLLY_VOICE_BY_LANGUAGE = {
     "en": "Aditi",  # Indian English
     "en-in": "Aditi",
-    "hi": "Aditi",
+    "en-us": "Joanna",  # US English
+    "hi": "Aditi",  # Hindi (Aditi supports Hindi)
     "hi-in": "Aditi",
-    "ta": "Kajal",
+    "ta": "Kajal",  # Tamil
     "ta-in": "Kajal",
-    "te": "Chitra",
-    "te-in": "Chitra",
-    "kn": "Neerja",
-    "kn-in": "Neerja",
-    "ml": "Shivani",
-    "ml-in": "Shivani",
-    "pa": "Gurpreet",
-    "pa-in": "Gurpreet",
-    "bn": "Tanishaa",
-    "bn-in": "Tanishaa",
+    "te": "Aditi",  # Telugu - using Aditi as fallback (no specific Telugu voice in standard)
+    "te-in": "Aditi",
+    "kn": "Aditi",  # Kannada - using Aditi as fallback
+    "kn-in": "Aditi",
+    "ml": "Aditi",  # Malayalam - using Aditi as fallback
+    "ml-in": "Aditi",
+    "pa": "Aditi",  # Punjabi - using Aditi as fallback
+    "pa-in": "Aditi",
+    "bn": "Aditi",  # Bengali - using Aditi as fallback (Tanishaa not available)
+    "bn-in": "Aditi",
 }
 DEFAULT_POLLY_VOICE = "Aditi"
+
+# Voices that require neural engine (only Kajal from our list)
+NEURAL_VOICES = ["Kajal"]
 
 
 def bedrock_finance_advice(text: str, detected_language: str = None) -> str:
@@ -405,6 +409,25 @@ def voice_to_finance(request):
         )
 
     audio_file = request.FILES["audio"]
+    
+    # Validate file size (max 25MB for audio files)
+    MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB
+    if audio_file.size > MAX_AUDIO_SIZE:
+        return JsonResponse(
+            {
+                "error": "File too large",
+                "message": f"Audio file size ({audio_file.size / (1024*1024):.2f} MB) exceeds maximum allowed size (25 MB).",
+                "max_size_mb": 25,
+                "received_size_mb": round(audio_file.size / (1024*1024), 2),
+            },
+            status=413,
+        )
+    
+    # Validate file type
+    allowed_types = ["audio/wav", "audio/wave", "audio/x-wav", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/m4a"]
+    if audio_file.content_type not in allowed_types:
+        logger.warning(f"Unexpected content type: {audio_file.content_type}")
+        # Still allow it, but log a warning
     file_name = f"voice_inputs/{uuid.uuid4()}.wav"
 
     # Determine voice / language preference (optional form fields)
@@ -539,8 +562,7 @@ def voice_to_finance(request):
 
     # Convert advice to speech via Polly
     # Some regional Indian voices require "neural" engine instead of "standard"
-    neural_voices = ["Kajal", "Chitra", "Neerja", "Shivani", "Gurpreet", "Tanishaa"]
-    engine = "neural" if voice_id in neural_voices else "standard"
+    engine = "neural" if voice_id in NEURAL_VOICES else "standard"
     
     try:
         polly_audio = polly.synthesize_speech(
