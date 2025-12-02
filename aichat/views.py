@@ -157,6 +157,8 @@ def _generate_finmate_ai_reply(session, message_text, language_instruction=None)
     """
     Generate AI reply using the shared FinMate logic.
     """
+    from .rag_retriever import retrieve_relevant_chunks
+
     context_block = _build_context_block(
         session.uhfs_score,
         session.uhfs_components,
@@ -165,18 +167,49 @@ def _generate_finmate_ai_reply(session, message_text, language_instruction=None)
         training_sections=_get_training_sections_context(),
     )
 
+    # RAG: retrieve relevant knowledge snippets based on question + UHFS context
+    retrieval_query = (
+        f"User question: {message_text}\n"
+        f"UHFS score: {context_block.get('uhfs_score')}\n"
+        f"Components: {context_block.get('uhfs_components')}\n"
+        "Retrieve documents that explain this situation and suggest suitable products "
+        "and training modules to improve the user's UHFS."
+    )
+    try:
+        retrieved_docs = retrieve_relevant_chunks(retrieval_query, top_k=5)
+    except Exception as e:
+        logger.error(f"RAG retrieval failed: {e}")
+        retrieved_docs = []
+
+    retrieved_text_block = ""
+    if retrieved_docs:
+        chunks = []
+        for d in retrieved_docs:
+            title = d.get("title") or d.get("id", "")
+            text = d.get("text", "")
+            chunks.append(f"[{d.get('type','doc')}:{d.get('id','')}] {title}\n{text}")
+        retrieved_text_block = "\n\n".join(chunks)
+
     history = []
     for msg in session.messages.order_by("created_at").all()[:20]:
         history.append({"role": msg.role, "content": msg.content})
 
     messages = [{"role": "system", "content": _build_system_prompt(language_instruction)}]
+    system_context = (
+        "Context JSON (UHFS + suggested products + training_sections):\n"
+        f"{context_block}"
+    )
+    if retrieved_text_block:
+        system_context += (
+            "\n\nRetrieved knowledge snippets (RAG). Use these as factual references "
+            "when giving advice. If something conflicts with safety or UHFS logic, "
+            "prioritize safety and UHFS rules:\n"
+            f"{retrieved_text_block}"
+        )
     messages.append(
         {
             "role": "system",
-            "content": (
-                "Context JSON (UHFS + suggested products):\n"
-                f"{context_block}"
-            ),
+            "content": system_context,
         }
     )
     messages.extend(history)
@@ -300,71 +333,8 @@ class FinMateChatView(APIView):
                 mime_type=getattr(f, "content_type", ""),
             )
 
-        # Prepare OpenAI client
-        api_key = getattr(settings, "OPENAI_API_KEY", None)
-        if not api_key:
-            logger.error("OPENAI_API_KEY is not configured in settings/env.")
-            reply_text = (
-                "FinMate is not fully configured on the server yet (missing AI key). "
-                "Your UHFS data and products are available, but I cannot generate "
-                "personalised advice until the administrator adds the AI key."
-            )
-            assistant_msg = ChatMessage.objects.create(
-                session=session,
-                role="assistant",
-                content=reply_text,
-            )
-            response_data = {
-                "session": ChatSessionSerializer(session).data,
-                "user_message": ChatMessageSerializer(user_msg).data,
-                "assistant_message": ChatMessageSerializer(assistant_msg).data,
-            }
-            return Response(response_data, status=500)
-
-        client = OpenAI(api_key=api_key)
-
-        context_block = _build_context_block(
-            session.uhfs_score,
-            session.uhfs_components,
-            session.uhfs_overall_risk,
-            session.suggested_products_snapshot or [],
-            training_sections=_get_training_sections_context(),
-        )
-
-        # Build conversation history (last 10 messages)
-        history = []
-        for msg in session.messages.order_by("created_at").all()[:20]:
-            history.append({"role": msg.role, "content": msg.content})
-
-        # Ensure system prompt at top
-        messages = [{"role": "system", "content": _build_system_prompt()}]
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "Context JSON (UHFS + suggested products):\n"
-                    f"{context_block}"
-                ),
-            }
-        )
-        messages.extend(history)
-        messages.append({"role": "user", "content": message_text})
-
-        try:
-            completion = client.chat.completions.create(
-                model="gpt-4.1-mini",
-                messages=messages,
-                temperature=0.3,
-                max_tokens=600,
-            )
-            reply_text = completion.choices[0].message.content
-        except Exception as e:
-            logger.error(f"Error calling OpenAI: {e}")
-            reply_text = (
-                "I am unable to reach the FinMate brain right now. "
-                "Please try again later, and meanwhile you can still "
-                "focus on tracking your expenses and building a small emergency buffer."
-            )
+        # Generate AI reply (uses RAG + UHFS/products/training context)
+        reply_text = _generate_finmate_ai_reply(session, message_text)
 
         # Save assistant reply
         assistant_msg = ChatMessage.objects.create(
