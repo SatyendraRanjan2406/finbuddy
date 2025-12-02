@@ -55,7 +55,7 @@ def get_onboarding_progress_details(user):
     
     total_steps = len(QUESTIONNAIRE_STEPS)
     completed_count = len(completed_steps)
-
+    
     # Auto-sync is_completed flag based on actual completed_count
     if total_steps > 0 and completed_count == total_steps:
         # All steps done

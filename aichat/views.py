@@ -7,6 +7,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from typing import Optional
 
 from finance.models import UHFSScore
 from finance.services.uhfs import calculate_and_store_uhfs
@@ -25,9 +27,7 @@ import boto3
 import uuid
 import time
 import requests
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse, HttpResponse
-from django.utils.decorators import method_decorator
+from django.http import HttpResponse
 
 logger = logging.getLogger(__name__)
 
@@ -61,22 +61,33 @@ def _get_uhfs_and_products(user):
     return uhfs_score, uhfs_components, overall_risk, suggested_products
 
 
-def _build_system_prompt():
+def _build_system_prompt(language_instruction=None):
     """
     System prompt for responsible FinMate behaviour.
     """
-    return (
+    prompt = (
         "You are FinMate, an AI-powered financial coach for Indian gig workers and low-"
         "income users. You must:\n"
-        "- Use **simple, friendly language** (English, can mix basic Hindi words if helpful).\n"
-        "- Explain UHFS components clearly and concretely.\n"
-        "- NEVER give investment, tax, or legal advice as guaranteed. Always say it is\n"
+        "- Use simple, friendly language (English, can mix basic Hindi words if helpful).\n"
+        "- If UHFS score is present in the context, explicitly say: "
+        "  \"Your UHFS score is X \" and explain briefly what that means.\n"
+        "- Explain UHFS components clearly and concretely (income stability, financial access, "
+        "  resilience, protection, literacy).\n"
+        "- NEVER give investment, tax, or legal advice as guaranteed. Always say it is "
         "  educational and suggest consulting a human advisor for final decisions.\n"
-        "- Avoid obscene, hateful, sexual, or unsafe content. If user asks for that, refuse\n"
-        "  politely and redirect to financial topics.Always suggest products from the database Product table first  , then suggest any general products . the suggested products are got via suggested product api call. \n"
-        "- When you mention products, explain **why** they match the user's UHFS profile.\n"
-        "- Always give **2–4 specific next steps** the user can take this week. Also , always give the products in the suggested products list in the response and then any other products that are not in the suggested products list in the response. Also suggest to improve score by doing training in Financial Health section ,etc  tips  \n"
+        "- Avoid obscene, hateful, sexual, or unsafe content. If user asks for that, refuse "
+        "  politely and redirect to financial topics. Always suggest products from the "
+        "  database Product table first, then suggest any general products. The suggested "
+        "  products are got via suggested product API call.\n"
+        "- When you mention products, explain why they match the user's UHFS profile.\n"
+        "- Always give 2–4 specific next steps the user can take this week. Also, always give "
+        "  the products in the suggested products list in the response and then any other "
+        "  products that are not in the suggested products list in the response. Also suggest "
+        "  how to improve the score by completing Financial Health trainings and simple habits.\n"
     )
+    if language_instruction:
+        prompt += f"- {language_instruction.strip()}.\n"
+    return prompt
 
 
 def _build_context_block(uhfs_score, uhfs_components, overall_risk, suggested_products):
@@ -86,6 +97,85 @@ def _build_context_block(uhfs_score, uhfs_components, overall_risk, suggested_pr
         "overall_risk": overall_risk,
         "suggested_products": suggested_products,
     }
+
+
+def _ensure_chat_session(user, session_id=None):
+    """
+    Fetch an existing chat session or create a new one with UHFS context.
+    """
+    if session_id:
+        try:
+            return ChatSession.objects.get(id=session_id, user=user)
+        except ChatSession.DoesNotExist:
+            raise ChatSession.DoesNotExist("Session not found")
+
+    uhfs_score, uhfs_components, overall_risk, suggested_products = _get_uhfs_and_products(user)
+    return ChatSession.objects.create(
+        user=user,
+        title=f"FinMate session {timezone.now().date()}",
+        uhfs_score=uhfs_score,
+        uhfs_components=uhfs_components,
+        uhfs_overall_risk=overall_risk,
+        suggested_products_snapshot=suggested_products,
+    )
+
+
+def _generate_finmate_ai_reply(session, message_text, language_instruction=None):
+    """
+    Generate AI reply using the shared FinMate logic.
+    """
+    context_block = _build_context_block(
+        session.uhfs_score,
+        session.uhfs_components,
+        session.uhfs_overall_risk,
+        session.suggested_products_snapshot or [],
+    )
+
+    history = []
+    for msg in session.messages.order_by("created_at").all()[:20]:
+        history.append({"role": msg.role, "content": msg.content})
+
+    messages = [{"role": "system", "content": _build_system_prompt(language_instruction)}]
+    messages.append(
+        {
+            "role": "system",
+            "content": (
+                "Context JSON (UHFS + suggested products):\n"
+                f"{context_block}"
+            ),
+        }
+    )
+    messages.extend(history)
+    if not history or history[-1]["role"] != "user" or history[-1]["content"] != message_text:
+        messages.append({"role": "user", "content": message_text})
+
+    api_key = getattr(settings, "OPENAI_API_KEY", None)
+    if not api_key:
+        logger.error("OPENAI_API_KEY is not configured in settings/env.")
+        return (
+            "FinMate is not fully configured on the server yet (missing AI key). "
+            "Your UHFS data and products are available, but I cannot generate "
+            "personalised advice until the administrator adds the AI key."
+        )
+
+    client = OpenAI(api_key=api_key)
+    try:
+        completion = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=messages,
+            temperature=0.3,
+            max_tokens=600,
+        )
+        reply_text = completion.choices[0].message.content
+    except Exception as e:
+        logger.error(f"Error calling OpenAI: {e}")
+        reply_text = (
+            "I am unable to reach the FinMate brain right now. "
+            "Please try again later, and meanwhile you can still "
+            "focus on tracking your expenses and building a small emergency buffer."
+        )
+
+    return reply_text
 
 
 class FinMateInitView(APIView):
@@ -263,7 +353,6 @@ S3_BUCKET = getattr(settings, "AWS_STORAGE_BUCKET_NAME", None)
 
 transcribe = boto3.client("transcribe", region_name=AWS_REGION)
 polly = boto3.client("polly", region_name=AWS_REGION)
-bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
 s3 = boto3.client("s3", region_name=AWS_REGION)
 
 POLLY_VOICE_BY_LANGUAGE = {
@@ -274,133 +363,81 @@ POLLY_VOICE_BY_LANGUAGE = {
     "hi-in": "Aditi",
     "ta": "Kajal",  # Tamil
     "ta-in": "Kajal",
-    "te": "Aditi",  # Telugu - using Aditi as fallback (no specific Telugu voice in standard)
+    "te": "Aditi",  # Telugu - fallback
     "te-in": "Aditi",
-    "kn": "Aditi",  # Kannada - using Aditi as fallback
+    "kn": "Aditi",  # Kannada - fallback
     "kn-in": "Aditi",
-    "ml": "Aditi",  # Malayalam - using Aditi as fallback
+    "ml": "Aditi",  # Malayalam - fallback
     "ml-in": "Aditi",
-    "pa": "Aditi",  # Punjabi - using Aditi as fallback
+    "pa": "Aditi",  # Punjabi - fallback
     "pa-in": "Aditi",
-    "bn": "Aditi",  # Bengali - using Aditi as fallback (Tanishaa not available)
+    "bn": "Aditi",  # Bengali - fallback
     "bn-in": "Aditi",
 }
 DEFAULT_POLLY_VOICE = "Aditi"
 
-# Voices that require neural engine (only Kajal from our list)
+# Voices that require neural engine
 NEURAL_VOICES = ["Kajal"]
 
+LANGUAGE_DISPLAY_NAMES = {
+    "EN-IN": "English",
+    "EN-US": "English",
+    "HI-IN": "Hindi",
+    "TA-IN": "Tamil",
+    "TE-IN": "Telugu",
+    "KN-IN": "Kannada",
+    "ML-IN": "Malayalam",
+    "PA-IN": "Punjabi",
+    "BN-IN": "Bengali",
+}
 
-def bedrock_finance_advice(text: str, detected_language: str = None) -> str:
-    """
-    Use Claude via Bedrock to generate short financial advice.
-    Falls back to OpenAI if Bedrock is not available.
-    Responds in the same language as the user's question.
-    """
-    # Map language codes to language names for the prompt
-    language_names = {
-        "hi-IN": "Hindi",
-        "en-IN": "English",
-        "en-US": "English",
-        "ta-IN": "Tamil",
-        "te-IN": "Telugu",
-        "kn-IN": "Kannada",
-        "ml-IN": "Malayalam",
-        "pa-IN": "Punjabi",
-        "bn-IN": "Bengali",
-    }
-    
-    language_name = language_names.get(detected_language, "the same language as the user")
-    language_instruction = f"Respond in {language_name}" if detected_language else "Respond in the same language as the user's question"
-    
-    prompt = f"""
-        You are a financial advisor for Indian gig workers.
-        User said (can be Hindi/Tamil/English/other Indian languages):
-        "{text}"
-
-        {language_instruction}.
-        Provide a simple, friendly, 4-line actionable financial advice.
-        Use Indian context and very practical steps.
-        Avoid any obscene or unsafe content. Educational only, not guaranteed returns.
-    """
-    
-    system_message = f"You are a financial advisor for Indian gig workers. {language_instruction}. Give simple, friendly, 4-line actionable advice in Indian context."
-    
-    # Try Bedrock first
-    try:
-        body = {
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 250,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ]
-        }
-        response = bedrock.invoke_model(
-            modelId="anthropic.claude-3-sonnet-20240229-v1:0",
-            contentType="application/json",
-            accept="application/json",
-            body=json.dumps(body),
-        )
-        result_json = json.loads(response["body"].read().decode("utf-8"))
-        return result_json["content"][0]["text"]
-    except Exception as e:
-        logger.warning(f"Bedrock failed, trying OpenAI fallback: {e}")
-        
-        # Fallback to OpenAI if Bedrock is not available
-        api_key = getattr(settings, "OPENAI_API_KEY", None)
-        if api_key:
-            try:
-                client = OpenAI(api_key=api_key)
-                completion = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.3,
-                    max_tokens=250,
-                )
-                return completion.choices[0].message.content
-            except Exception as openai_error:
-                logger.error(f"OpenAI fallback also failed: {openai_error}")
-        
-        # Final fallback
-        return (
-            "Voice understood. Start by setting aside ₹100-200 each week as emergency savings. "
-            "Track your daily expenses in a simple notebook or app. Consider opening a basic "
-            "savings account if you don't have one. Build small habits for financial security."
-        )
+TRANSCRIBE_LANGUAGE_OPTIONS = [
+    "hi-IN",
+    "en-IN",
+    "en-US",
+    "ta-IN",
+    "te-IN",
+    "kn-IN",
+    "ml-IN",
+    "pa-IN",
+    "bn-IN",
+]
 
 
-@csrf_exempt
+def _get_language_instruction(language_code: Optional[str]) -> Optional[str]:
+    if not language_code:
+        return None
+    display = LANGUAGE_DISPLAY_NAMES.get(language_code.upper(), "the user's language")
+    return f"Respond in {display}"
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
 def voice_to_finance(request):
     """
     POST /api/aichat/voice/ask
     Form-data: audio=@sample_voice.wav
 
     - Uploads audio to S3
-    - Runs Amazon Transcribe
-    - Sends text to Bedrock for advice
-    - Uses Polly to synthesize advice audio
-    - Returns MP3 audio with X-Advice-Text header
+    - Runs Amazon Transcribe with auto language detection
+    - Generates FinMate advice using the same logic as /finmate/chat/
+    - Synthesizes the reply using Polly in the detected/requested language
+    - Returns MP3 audio with helpful headers (text, language, session id)
     """
-    if request.method != "POST":
-        return JsonResponse({"error": "POST required"}, status=400)
-
-    if "audio" not in request.FILES:
-        return JsonResponse({"error": "audio file required as 'audio'"}, status=400)
+    data = request.data
+    audio_file = request.FILES.get("audio")
+    if not audio_file:
+        return Response({"error": "audio file required as 'audio'"}, status=400)
 
     if not S3_BUCKET:
-        return JsonResponse({"error": "AWS_STORAGE_BUCKET_NAME not configured"}, status=500)
+        return Response({"error": "AWS_STORAGE_BUCKET_NAME not configured"}, status=500)
 
     # Check AWS credentials are configured
     aws_access_key = getattr(settings, "AWS_ACCESS_KEY_ID", None)
     aws_secret_key = getattr(settings, "AWS_SECRET_ACCESS_KEY", None)
     if not aws_access_key or not aws_secret_key:
-        return JsonResponse(
+        return Response(
             {
                 "error": "AWS credentials not configured",
                 "details": "Please set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY in environment/settings.",
@@ -408,43 +445,39 @@ def voice_to_finance(request):
             status=500,
         )
 
-    audio_file = request.FILES["audio"]
-    
     # Validate file size (max 25MB for audio files)
     MAX_AUDIO_SIZE = 25 * 1024 * 1024  # 25MB
     if audio_file.size > MAX_AUDIO_SIZE:
-        return JsonResponse(
+        return Response(
             {
                 "error": "File too large",
                 "message": f"Audio file size ({audio_file.size / (1024*1024):.2f} MB) exceeds maximum allowed size (25 MB).",
                 "max_size_mb": 25,
-                "received_size_mb": round(audio_file.size / (1024*1024), 2),
+                "received_size_mb": round(audio_file.size / (1024 * 1024), 2),
             },
             status=413,
         )
-    
-    # Validate file type
+
+    # Validate file type (log warning but allow uncommon types)
     allowed_types = ["audio/wav", "audio/wave", "audio/x-wav", "audio/mpeg", "audio/mp3", "audio/mp4", "audio/m4a"]
     if audio_file.content_type not in allowed_types:
         logger.warning(f"Unexpected content type: {audio_file.content_type}")
-        # Still allow it, but log a warning
-    file_name = f"voice_inputs/{uuid.uuid4()}.wav"
 
-    # Determine voice / language preference (optional form fields)
-    requested_voice_id = request.POST.get("voice_id")
-    requested_language = request.POST.get("language")
-    voice_id = DEFAULT_POLLY_VOICE
-    if requested_voice_id:
-        voice_id = requested_voice_id
-    elif requested_language:
-        normalized = requested_language.lower()
-        voice_id = POLLY_VOICE_BY_LANGUAGE.get(normalized) or POLLY_VOICE_BY_LANGUAGE.get(
-            normalized.split("-")[0], DEFAULT_POLLY_VOICE
-        )
+    # Ensure chat session (reuse if session_id provided)
+    session_id = data.get("session_id")
+    try:
+        session = _ensure_chat_session(request.user, session_id=session_id)
+    except ChatSession.DoesNotExist:
+        return Response({"error": "Session not found"}, status=404)
+
+    requested_voice_id = data.get("voice_id")
+    requested_language = data.get("language")
+    voice_id = requested_voice_id or DEFAULT_POLLY_VOICE
+
+    file_name = f"voice_inputs/{uuid.uuid4()}.wav"
 
     # Upload audio to S3 with error handling
     try:
-        # Reset file pointer to beginning (in case it was read already)
         audio_file.seek(0)
         s3.upload_fileobj(
             audio_file,
@@ -457,7 +490,7 @@ def voice_to_finance(request):
         logger.error(f"S3 upload failed: {e}")
         error_msg = str(e)
         if "AccessDenied" in error_msg or "Access Denied" in error_msg:
-            return JsonResponse(
+            return Response(
                 {
                     "error": "S3 Access Denied",
                     "message": "Your AWS credentials do not have permission to upload to S3.",
@@ -474,7 +507,7 @@ def voice_to_finance(request):
                 status=403,
             )
         elif "NoSuchBucket" in error_msg:
-            return JsonResponse(
+            return Response(
                 {
                     "error": f"S3 bucket '{S3_BUCKET}' does not exist",
                     "message": "The configured bucket name does not exist or is not accessible.",
@@ -485,7 +518,7 @@ def voice_to_finance(request):
                 status=404,
             )
         elif "InvalidAccessKeyId" in error_msg or "SignatureDoesNotMatch" in error_msg:
-            return JsonResponse(
+            return Response(
                 {
                     "error": "Invalid AWS credentials",
                     "message": "The AWS access key ID or secret key is incorrect.",
@@ -494,7 +527,7 @@ def voice_to_finance(request):
                 status=401,
             )
         else:
-            return JsonResponse(
+            return Response(
                 {
                     "error": f"S3 upload failed: {error_msg}",
                     "message": "Please check AWS credentials and bucket configuration.",
@@ -511,8 +544,8 @@ def voice_to_finance(request):
         TranscriptionJobName=job_name,
         Media={"MediaFileUri": f"s3://{S3_BUCKET}/{file_name}"},
         MediaFormat="wav",
-        IdentifyLanguage=True,  # Auto-detect language
-        LanguageOptions=["hi-IN", "en-IN", "en-US", "ta-IN", "te-IN", "kn-IN", "ml-IN", "pa-IN", "bn-IN"],  # Supported Indian languages
+        IdentifyLanguage=True,
+        LanguageOptions=TRANSCRIBE_LANGUAGE_OPTIONS,
     )
 
     # Simple polling (hackathon style)
@@ -524,57 +557,58 @@ def voice_to_finance(request):
         time.sleep(1)
 
     if state == "FAILED":
-        return JsonResponse({"error": "Transcription failed"}, status=500)
+        return Response({"error": "Transcription failed"}, status=500)
 
-    # Get detected language from transcription job
     detected_language = status["TranscriptionJob"].get("LanguageCode", "en-IN")
     logger.info(f"Detected language: {detected_language}")
 
     transcript_url = status["TranscriptionJob"]["Transcript"]["TranscriptFileUri"]
     transcript_json = requests.get(transcript_url).json()
-    text = transcript_json["results"]["transcripts"][0]["transcript"]
+    text = (transcript_json["results"]["transcripts"][0].get("transcript") or "").strip()
 
-    # Auto-select voice based on detected language (override user selection if auto-detect is used)
-    if not requested_voice_id:  # Only auto-select if user didn't specify
-        normalized_lang = detected_language.lower()
+    if not text:
+        return Response({"error": "Could not transcribe the audio. Please try again with a clearer recording."}, status=400)
+
+    # Determine final response language & voice
+    response_language_code = (requested_language or detected_language or "en-IN").upper()
+    language_instruction = _get_language_instruction(response_language_code)
+
+    if not requested_voice_id:
+        normalized_lang = response_language_code.lower()
         voice_id = POLLY_VOICE_BY_LANGUAGE.get(normalized_lang) or POLLY_VOICE_BY_LANGUAGE.get(
             normalized_lang.split("-")[0], DEFAULT_POLLY_VOICE
         )
-        logger.info(f"Auto-selected voice {voice_id} for language {detected_language}")
+        logger.info(f"Auto-selected voice {voice_id} for language {response_language_code}")
 
-    # Ask Bedrock for advice in the detected language
-    try:
-        advice = bedrock_finance_advice(text, detected_language=detected_language)
-    except Exception as e:
-        logger.error(f"Error calling Bedrock: {e}")
-        # Fallback message in detected language
-        fallback_messages = {
-            "hi-IN": "आवाज समझ आ गई, लेकिन मैं अभी AI सलाहकार तक नहीं पहुंच सका। कृपया बाद में पुनः प्रयास करें, और इस बीच हर सप्ताह एक छोटी राशि आपातकालीन बचत के रूप में अलग रखना शुरू करें।",
-            "ta-IN": "குரல் புரிந்தது, ஆனால் நான் இப்போது AI ஆலோசகரை அணுக முடியவில்லை. தயவுசெய்து பின்னர் மீண்டும் முயற்சிக்கவும், இதற்கிடையில் வாரத்திற்கு ஒரு சிறிய தொகையை அவசரகால சேமிப்பாக ஒதுக்கத் தொடங்குங்கள்.",
-            "te-IN": "వాయిస్ అర్థమైంది, కానీ నేను ఇప్పుడు AI సలహాదారుకు చేరుకోలేకపోయాను. దయచేసి తర్వాత మళ్లీ ప్రయత్నించండి, మరియు ఈ మధ్య వారానికి ఒక చిన్న మొత్తాన్ని అత్యవసర పొదుపుగా వేరు చేయడం ప్రారంభించండి.",
-            "kn-IN": "ಧ್ವನಿ ಅರ್ಥವಾಯಿತು, ಆದರೆ ನಾನು ಈಗ AI ಸಲಹೆಗಾರನನ್ನು ತಲುಪಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ದಯವಿಟ್ಟು ನಂತರ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ, ಮತ್ತು ಈ ಮಧ್ಯೆ ವಾರಕ್ಕೆ ಒಂದು ಸಣ್ಣ ಮೊತ್ತವನ್ನು ತುರ್ತು ಉಳಿತಾಯವಾಗಿ ಬದಲಿಸಲು ಪ್ರಾರಂಭಿಸಿ।",
-        }
-        advice = fallback_messages.get(detected_language, 
-            "Voice understood, but I could not reach the AI advisor right now. "
-            "Please try again later, and meanwhile start by setting aside a small "
-            "amount each week as emergency savings."
-        )
+    # Save user message (transcribed text)
+    user_msg = ChatMessage.objects.create(
+        session=session,
+        role="user",
+        content=text,
+    )
+
+    # Generate FinMate reply (same logic as chat API)
+    advice = _generate_finmate_ai_reply(session, text, language_instruction=language_instruction)
+
+    assistant_msg = ChatMessage.objects.create(
+        session=session,
+        role="assistant",
+        content=advice,
+    )
 
     # Convert advice to speech via Polly
-    # Some regional Indian voices require "neural" engine instead of "standard"
     engine = "neural" if voice_id in NEURAL_VOICES else "standard"
-    
+
     try:
         polly_audio = polly.synthesize_speech(
             Text=advice,
             VoiceId=voice_id,
             OutputFormat="mp3",
-            Engine=engine,  # Use neural for regional Indian voices
+            Engine=engine,
         )
         audio_stream = polly_audio["AudioStream"].read()
     except Exception as e:
         logger.error(f"Error calling Polly with {engine} engine: {e}")
-        # Try with standard engine if neural failed (fallback)
         if engine == "neural":
             try:
                 logger.info(f"Retrying with standard engine for voice {voice_id}")
@@ -587,7 +621,7 @@ def voice_to_finance(request):
                 audio_stream = polly_audio["AudioStream"].read()
             except Exception as e2:
                 logger.error(f"Polly standard engine also failed: {e2}")
-                return JsonResponse(
+                return Response(
                     {
                         "text": advice,
                         "warning": "Polly TTS failed, returning text only.",
@@ -597,7 +631,7 @@ def voice_to_finance(request):
                     status=200,
                 )
         else:
-            return JsonResponse(
+            return Response(
                 {
                     "text": advice,
                     "warning": "Polly TTS failed, returning text only.",
@@ -608,15 +642,14 @@ def voice_to_finance(request):
             )
 
     response = HttpResponse(audio_stream, content_type="audio/mpeg")
-    # Sanitize advice text for header: remove newlines and ensure single-line
-    # Replace newlines with spaces, and limit length to avoid header size issues
     sanitized_advice = advice.replace("\n", " ").replace("\r", " ").strip()
-    # Limit header length (HTTP headers should be < 8KB, but keep it reasonable)
     if len(sanitized_advice) > 500:
         sanitized_advice = sanitized_advice[:500] + "..."
     response["X-Advice-Text"] = sanitized_advice
     response["X-Polly-VoiceId"] = voice_id
     response["X-Detected-Language"] = detected_language
+    response["X-Response-Language"] = response_language_code
+    response["X-Session-Id"] = str(session.id)
     return response
 
 
