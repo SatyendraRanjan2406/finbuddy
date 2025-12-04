@@ -9,6 +9,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework_simplejwt.tokens import RefreshToken
 
 from accounts.models import PhoneOTP, UserFaceProfile
+from finance.models import PersonalDemographic
 from accounts.serializers import (
     SendOTPSerializer,
     VerifyOTPSerializer,
@@ -104,6 +105,29 @@ class VerifyOTPView(APIView):
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
+        # Get user profile data from PersonalDemographic
+        mobile_number = user.phone or user.username  # Use phone field or username (which is phone_number)
+        
+        # Initialize user profile fields
+        full_name = None
+        age = None
+        gender = None
+        state = None
+        city_district = None
+        
+        # Try to get data from PersonalDemographic
+        try:
+            personal_demo = PersonalDemographic.objects.get(user=user)
+            full_name = personal_demo.full_name
+            age = personal_demo.age
+            gender = personal_demo.gender
+            state = personal_demo.state
+            city_district = personal_demo.city_district
+        except PersonalDemographic.DoesNotExist:
+            # Fallback to User model fields for name only
+            if user.first_name or user.last_name:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        
         # Get onboarding progress details
         onboarding_details = get_onboarding_progress_details(user)
 
@@ -112,7 +136,15 @@ class VerifyOTPView(APIView):
                 "detail": "OTP verified.",
                 "access": str(access_token),
                 "refresh": str(refresh),
-                "user": {"id": str(user.id), "phone_number": user.username},
+                "user": {
+                    "id": str(user.id),
+                    "phone_number": mobile_number,
+                    "full_name": full_name,
+                    "age": age,
+                    "gender": gender,
+                    "state": state,
+                    "city_district": city_district,
+                },
                 "onboarding": onboarding_details,
             },
             status=status.HTTP_200_OK,
@@ -271,6 +303,29 @@ class FaceLoginView(APIView):
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
+        # Get user profile data from PersonalDemographic
+        mobile_number = user.phone or user.username  # Use phone field or username (which is phone_number)
+        
+        # Initialize user profile fields
+        full_name = None
+        age = None
+        gender = None
+        state = None
+        city_district = None
+        
+        # Try to get data from PersonalDemographic
+        try:
+            personal_demo = PersonalDemographic.objects.get(user=user)
+            full_name = personal_demo.full_name
+            age = personal_demo.age
+            gender = personal_demo.gender
+            state = personal_demo.state
+            city_district = personal_demo.city_district
+        except PersonalDemographic.DoesNotExist:
+            # Fallback to User model fields for name only
+            if user.first_name or user.last_name:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+
         # Get onboarding progress details
         onboarding_details = get_onboarding_progress_details(user)
 
@@ -279,7 +334,15 @@ class FaceLoginView(APIView):
                 "detail": f"Face recognized successfully (similarity: {similarity:.2f}%).",
                 "access": str(access_token),
                 "refresh": str(refresh),
-                "user": {"id": str(user.id), "phone_number": user.username},
+                "user": {
+                    "id": str(user.id),
+                    "phone_number": mobile_number,
+                    "full_name": full_name,
+                    "age": age,
+                    "gender": gender,
+                    "state": state,
+                    "city_district": city_district,
+                },
                 "onboarding": onboarding_details,
                 "face_match": {
                     "similarity": similarity,
