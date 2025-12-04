@@ -15,6 +15,7 @@ from finance.views import (
     get_suggested_products,
     populate_products,
     RiskRecommendationView,
+    DashboardView,
 )
 
 from .search_views import (
@@ -42,6 +43,7 @@ urlpatterns = [
     path("behavioral-psychometric/", BehavioralPsychometricView.as_view(), name="behavioral-psychometric"),
     path("government-scheme/", GovernmentSchemeEligibilityView.as_view(), name="government-scheme"),
     path("uhfs-score/", UHFSScoreView.as_view(), name="uhfs-score"),
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
 
     path("products/", ProductListView.as_view(), name="product-list"),
     path("products/<int:id>/", ProductDetailView.as_view(), name="product-detail"),

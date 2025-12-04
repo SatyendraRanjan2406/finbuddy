@@ -16,6 +16,7 @@ from finance.models import (
     UHFSScore,
     RiskRecommendation,
 )
+from accounts.models import User
 from finance.serializers import (
     PersonalDemographicSerializer,
     IncomeEmploymentSerializer,
@@ -541,10 +542,44 @@ class UHFSScoreView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        user = request.user
+        
+        # Get user profile data from PersonalDemographic
+        mobile_number = user.phone or user.username
+        
+        # Initialize user profile fields
+        full_name = None
+        age = None
+        gender = None
+        state = None
+        city_district = None
+        
+        # Try to get data from PersonalDemographic
+        try:
+            personal_demo = PersonalDemographic.objects.get(user=user)
+            full_name = personal_demo.full_name
+            age = personal_demo.age
+            gender = personal_demo.gender
+            state = personal_demo.state
+            city_district = personal_demo.city_district
+        except PersonalDemographic.DoesNotExist:
+            # Fallback to User model fields for name only
+            if user.first_name or user.last_name:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        
         try:
             uhfs = UHFSScore.objects.get(user=request.user)
-            # Return same format as POST response
+            # Return same format as POST response with user profile
             result = {
+                "user": {
+                    "id": str(user.id),
+                    "phone_number": mobile_number,
+                    "full_name": full_name,
+                    "age": age,
+                    "gender": gender,
+                    "state": state,
+                    "city_district": city_district,
+                },
                 "user_id": str(request.user.id),
                 "components": uhfs.components or {},
                 "weights": {"I": 0.25, "F": 0.25, "R": 0.15, "P": 0.20, "L": 0.15},
@@ -556,8 +591,20 @@ class UHFSScoreView(APIView):
             }
             return Response(result, status=status.HTTP_200_OK)
         except UHFSScore.DoesNotExist:
+            # Return user profile even if UHFS score doesn't exist
             return Response(
-                {"detail": "UHFS score not calculated yet. Use POST to calculate."},
+                {
+                    "user": {
+                        "id": str(user.id),
+                        "phone_number": mobile_number,
+                        "full_name": full_name,
+                        "age": age,
+                        "gender": gender,
+                        "state": state,
+                        "city_district": city_district,
+                    },
+                    "detail": "UHFS score not calculated yet. Use POST to calculate.",
+                },
                 status=status.HTTP_404_NOT_FOUND,
             )
 
@@ -598,6 +645,88 @@ def populate_products(request):
         return Response(
             {"error": f"Required dependencies not installed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+
+class DashboardView(APIView):
+    """
+    GET /api/finance/dashboard/
+    Returns comprehensive user dashboard data including profile, UHFS score, and other relevant information.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        
+        # Get user profile data from PersonalDemographic
+        mobile_number = user.phone or user.username
+        
+        # Initialize user profile fields
+        full_name = None
+        age = None
+        gender = None
+        state = None
+        city_district = None
+        
+        # Try to get data from PersonalDemographic
+        try:
+            personal_demo = PersonalDemographic.objects.get(user=user)
+            full_name = personal_demo.full_name
+            age = personal_demo.age
+            gender = personal_demo.gender
+            state = personal_demo.state
+            city_district = personal_demo.city_district
+        except PersonalDemographic.DoesNotExist:
+            # Fallback to User model fields for name only
+            if user.first_name or user.last_name:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
+        
+        # Get UHFS score
+        uhfs_data = None
+        try:
+            uhfs = UHFSScore.objects.get(user=user)
+            uhfs_data = {
+                "uhfs_score": uhfs.score,
+                "components": uhfs.components or {},
+                "composite": float(uhfs.composite) if uhfs.composite else 0.0,
+                "overall_risk": uhfs.overall_risk or "Unknown",
+                "domain_risk": uhfs.domain_risk or {},
+                "last_updated": uhfs.last_updated.isoformat() if uhfs.last_updated else None,
+            }
+        except UHFSScore.DoesNotExist:
+            uhfs_data = None
+        
+        # Get onboarding progress
+        from finance.utils import get_onboarding_progress_details
+        onboarding_details = get_onboarding_progress_details(user)
+        
+        # Get suggested products if UHFS score exists
+        suggested_products = []
+        if uhfs_data and uhfs_data.get("uhfs_score"):
+            try:
+                from finance.services.products_util import get_suggested_products_util
+                from finance.serializers import ProductSerializer
+                products_qs = get_suggested_products_util(uhfs_data["uhfs_score"])
+                suggested_products = ProductSerializer(products_qs, many=True).data
+            except Exception:
+                pass
+        
+        return Response(
+            {
+                "user": {
+                    "id": str(user.id),
+                    "phone_number": mobile_number,
+                    "full_name": full_name,
+                    "age": age,
+                    "gender": gender,
+                    "state": state,
+                    "city_district": city_district,
+                },
+                "uhfs": uhfs_data,
+                "onboarding": onboarding_details,
+                "suggested_products": suggested_products,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
