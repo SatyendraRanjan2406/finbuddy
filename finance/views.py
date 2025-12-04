@@ -7,12 +7,10 @@ from rest_framework.decorators import api_view
 from finance.models import (
     PersonalDemographic,
     IncomeEmployment,
-    BankingFinancialAccess,
-    CreditLiabilities,
-    SavingsInsurance,
-    ExpensesObligations,
-    BehavioralPsychometric,
-    GovernmentSchemeEligibility,
+    IncomeStability,
+    FinancialBehavior,
+    ReliabilityTenure,
+    ProtectionReadiness,
     UHFSScore,
     RiskRecommendation,
 )
@@ -20,18 +18,16 @@ from accounts.models import User
 from finance.serializers import (
     PersonalDemographicSerializer,
     IncomeEmploymentSerializer,
-    BankingFinancialAccessSerializer,
-    CreditLiabilitiesSerializer,
-    SavingsInsuranceSerializer,
-    ExpensesObligationsSerializer,
-    BehavioralPsychometricSerializer,
-    GovernmentSchemeEligibilitySerializer,
+    IncomeStabilitySerializer,
+    FinancialBehaviorSerializer,
+    ReliabilityTenureSerializer,
+    ProtectionReadinessSerializer,
     UHFSScoreSerializer,
     RiskRecommendationRequestSerializer,
     RiskRecommendationResponseSerializer,
 )
 from finance.services.products_util import get_suggested_products_util
-from finance.services.uhfs import calculate_and_store_uhfs
+from finance.services.uhfs_v2 import calculate_and_store_uhfs
 from finance.utils import update_progress
 
 from .models import Product
@@ -155,7 +151,7 @@ class PersonalDemographicView(APIView):
 
 class IncomeEmploymentView(APIView):
     """
-    GET /api/finance/income-employment/ - Get income employment info
+    GET /api/finance/income-employment/ - Get income employment info (Q11)
     POST /api/finance/income-employment/ - Create or update income employment info
     PUT /api/finance/income-employment/ - Update income employment info
     PATCH /api/finance/income-employment/ - Partial update income employment info
@@ -179,13 +175,14 @@ class IncomeEmploymentView(APIView):
             serializer = IncomeEmploymentSerializer(income, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            update_progress(request.user , "income_employment" )
+            update_progress(request.user, "income_employment")
 
             return Response(serializer.data, status=status.HTTP_200_OK)
         except IncomeEmployment.DoesNotExist:
             serializer = IncomeEmploymentSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(user=request.user)
+            update_progress(request.user, "income_employment")
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def put(self, request):
@@ -208,39 +205,48 @@ class IncomeEmploymentView(APIView):
             )
 
 
-class BankingFinancialAccessView(APIView):
+class IncomeStabilityView(APIView):
     """
-    GET /api/finance/banking-access/ - Get banking financial access info
-    POST /api/finance/banking-access/ - Create or update banking financial access info
-    PUT /api/finance/banking-access/ - Update banking financial access info
-    PATCH /api/finance/banking-access/ - Partial update banking financial access info
+    GET /api/finance/income-stability/ - Get income stability info (Q12-15)
+    POST /api/finance/income-stability/ - Create or update income stability info
+    All questions on one page
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            banking = BankingFinancialAccess.objects.get(user=request.user)
-            serializer = BankingFinancialAccessSerializer(banking)
+            income_stability = IncomeStability.objects.get(user=request.user)
+            serializer = IncomeStabilitySerializer(income_stability)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except BankingFinancialAccess.DoesNotExist:
+        except IncomeStability.DoesNotExist:
             return Response(
-                {"detail": "Banking financial access information not found."},
+                {"detail": "Income stability information not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
     def post(self, request):
         try:
-            banking = BankingFinancialAccess.objects.get(user=request.user)
-            serializer = BankingFinancialAccessSerializer(banking, data=request.data, partial=True)
+            income_stability = IncomeStability.objects.get(user=request.user)
+            serializer = IncomeStabilitySerializer(income_stability, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            update_progress(request.user , "banking_financial_access" )
-
+            update_progress(request.user, "income_stability")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except BankingFinancialAccess.DoesNotExist:
-            serializer = BankingFinancialAccessSerializer(data=request.data)
+        except IncomeStability.DoesNotExist:
+            serializer = IncomeStabilitySerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(user=request.user)
+            update_progress(request.user, "income_stability")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def put(self, request):
@@ -251,50 +257,65 @@ class BankingFinancialAccessView(APIView):
 
     def _update(self, request, partial=False):
         try:
-            banking = BankingFinancialAccess.objects.get(user=request.user)
-            serializer = BankingFinancialAccessSerializer(banking, data=request.data, partial=partial)
+            income_stability = IncomeStability.objects.get(user=request.user)
+            serializer = IncomeStabilitySerializer(income_stability, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except BankingFinancialAccess.DoesNotExist:
+        except IncomeStability.DoesNotExist:
             return Response(
-                {"detail": "Banking financial access information not found. Use POST to create."},
+                {"detail": "Income stability information not found. Use POST to create."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
 
-class CreditLiabilitiesView(APIView):
+class FinancialBehaviorView(APIView):
     """
-    GET /api/finance/credit-liabilities/ - Get credit liabilities info
-    POST /api/finance/credit-liabilities/ - Create or update credit liabilities info
-    PUT /api/finance/credit-liabilities/ - Update credit liabilities info
-    PATCH /api/finance/credit-liabilities/ - Partial update credit liabilities info
+    GET /api/finance/financial-behavior/ - Get financial behavior info (Q16-19)
+    POST /api/finance/financial-behavior/ - Create or update financial behavior info
+    All questions on one page
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            credit = CreditLiabilities.objects.get(user=request.user)
-            serializer = CreditLiabilitiesSerializer(credit)
+            financial_behavior = FinancialBehavior.objects.get(user=request.user)
+            serializer = FinancialBehaviorSerializer(financial_behavior)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except CreditLiabilities.DoesNotExist:
+        except FinancialBehavior.DoesNotExist:
             return Response(
-                {"detail": "Credit liabilities information not found."},
+                {"detail": "Financial behavior information not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
     def post(self, request):
         try:
-            credit = CreditLiabilities.objects.get(user=request.user)
-            serializer = CreditLiabilitiesSerializer(credit, data=request.data, partial=True)
+            financial_behavior = FinancialBehavior.objects.get(user=request.user)
+            serializer = FinancialBehaviorSerializer(financial_behavior, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            update_progress(request.user , "credit_liabilities" )
+            update_progress(request.user, "financial_behavior")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except CreditLiabilities.DoesNotExist:
-            serializer = CreditLiabilitiesSerializer(data=request.data)
+        except FinancialBehavior.DoesNotExist:
+            serializer = FinancialBehaviorSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(user=request.user)
+            update_progress(request.user, "financial_behavior")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def put(self, request):
@@ -305,50 +326,65 @@ class CreditLiabilitiesView(APIView):
 
     def _update(self, request, partial=False):
         try:
-            credit = CreditLiabilities.objects.get(user=request.user)
-            serializer = CreditLiabilitiesSerializer(credit, data=request.data, partial=partial)
+            financial_behavior = FinancialBehavior.objects.get(user=request.user)
+            serializer = FinancialBehaviorSerializer(financial_behavior, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except CreditLiabilities.DoesNotExist:
+        except FinancialBehavior.DoesNotExist:
             return Response(
-                {"detail": "Credit liabilities information not found. Use POST to create."},
+                {"detail": "Financial behavior information not found. Use POST to create."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
 
-class SavingsInsuranceView(APIView):
+class ReliabilityTenureView(APIView):
     """
-    GET /api/finance/savings-insurance/ - Get savings insurance info
-    POST /api/finance/savings-insurance/ - Create or update savings insurance info
-    PUT /api/finance/savings-insurance/ - Update savings insurance info
-    PATCH /api/finance/savings-insurance/ - Partial update savings insurance info
+    GET /api/finance/reliability-tenure/ - Get reliability & tenure info (Q20-23)
+    POST /api/finance/reliability-tenure/ - Create or update reliability & tenure info
+    All questions on one page
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            savings = SavingsInsurance.objects.get(user=request.user)
-            serializer = SavingsInsuranceSerializer(savings)
+            reliability_tenure = ReliabilityTenure.objects.get(user=request.user)
+            serializer = ReliabilityTenureSerializer(reliability_tenure)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except SavingsInsurance.DoesNotExist:
+        except ReliabilityTenure.DoesNotExist:
             return Response(
-                {"detail": "Savings insurance information not found."},
+                {"detail": "Reliability & tenure information not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
     def post(self, request):
         try:
-            savings = SavingsInsurance.objects.get(user=request.user)
-            serializer = SavingsInsuranceSerializer(savings, data=request.data, partial=True)
+            reliability_tenure = ReliabilityTenure.objects.get(user=request.user)
+            serializer = ReliabilityTenureSerializer(reliability_tenure, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            update_progress(request.user , "savings_insurance" )
+            update_progress(request.user, "reliability_tenure")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except SavingsInsurance.DoesNotExist:
-            serializer = SavingsInsuranceSerializer(data=request.data)
+        except ReliabilityTenure.DoesNotExist:
+            serializer = ReliabilityTenureSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(user=request.user)
+            update_progress(request.user, "reliability_tenure")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def put(self, request):
@@ -359,50 +395,65 @@ class SavingsInsuranceView(APIView):
 
     def _update(self, request, partial=False):
         try:
-            savings = SavingsInsurance.objects.get(user=request.user)
-            serializer = SavingsInsuranceSerializer(savings, data=request.data, partial=partial)
+            reliability_tenure = ReliabilityTenure.objects.get(user=request.user)
+            serializer = ReliabilityTenureSerializer(reliability_tenure, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except SavingsInsurance.DoesNotExist:
+        except ReliabilityTenure.DoesNotExist:
             return Response(
-                {"detail": "Savings insurance information not found. Use POST to create."},
+                {"detail": "Reliability & tenure information not found. Use POST to create."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
 
-class ExpensesObligationsView(APIView):
+class ProtectionReadinessView(APIView):
     """
-    GET /api/finance/expenses-obligations/ - Get expenses obligations info
-    POST /api/finance/expenses-obligations/ - Create or update expenses obligations info
-    PUT /api/finance/expenses-obligations/ - Update expenses obligations info
-    PATCH /api/finance/expenses-obligations/ - Partial update expenses obligations info
+    GET /api/finance/protection-readiness/ - Get protection readiness info (Q24-27)
+    POST /api/finance/protection-readiness/ - Create or update protection readiness info
+    All questions on one page
     """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            expenses = ExpensesObligations.objects.get(user=request.user)
-            serializer = ExpensesObligationsSerializer(expenses)
+            protection_readiness = ProtectionReadiness.objects.get(user=request.user)
+            serializer = ProtectionReadinessSerializer(protection_readiness)
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except ExpensesObligations.DoesNotExist:
+        except ProtectionReadiness.DoesNotExist:
             return Response(
-                {"detail": "Expenses obligations information not found."},
+                {"detail": "Protection readiness information not found."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
     def post(self, request):
         try:
-            expenses = ExpensesObligations.objects.get(user=request.user)
-            serializer = ExpensesObligationsSerializer(expenses, data=request.data, partial=True)
+            protection_readiness = ProtectionReadiness.objects.get(user=request.user)
+            serializer = ProtectionReadinessSerializer(protection_readiness, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
-            update_progress(request.user , "expenses_obligations" )
+            update_progress(request.user, "protection_readiness")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except ExpensesObligations.DoesNotExist:
-            serializer = ExpensesObligationsSerializer(data=request.data)
+        except ProtectionReadiness.DoesNotExist:
+            serializer = ProtectionReadinessSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
             serializer.save(user=request.user)
+            update_progress(request.user, "protection_readiness")
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def put(self, request):
@@ -413,125 +464,35 @@ class ExpensesObligationsView(APIView):
 
     def _update(self, request, partial=False):
         try:
-            expenses = ExpensesObligations.objects.get(user=request.user)
-            serializer = ExpensesObligationsSerializer(expenses, data=request.data, partial=partial)
+            protection_readiness = ProtectionReadiness.objects.get(user=request.user)
+            serializer = ProtectionReadinessSerializer(protection_readiness, data=request.data, partial=partial)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            # Trigger UHFS recalculation
+            try:
+                calculate_and_store_uhfs(request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=status.HTTP_200_OK)
-        except ExpensesObligations.DoesNotExist:
+        except ProtectionReadiness.DoesNotExist:
             return Response(
-                {"detail": "Expenses obligations information not found. Use POST to create."},
+                {"detail": "Protection readiness information not found. Use POST to create."},
                 status=status.HTTP_404_NOT_FOUND,
             )
 
 
-class BehavioralPsychometricView(APIView):
-    """
-    GET /api/finance/behavioral-psychometric/ - Get behavioral psychometric info
-    POST /api/finance/behavioral-psychometric/ - Create or update behavioral psychometric info
-    PUT /api/finance/behavioral-psychometric/ - Update behavioral psychometric info
-    PATCH /api/finance/behavioral-psychometric/ - Partial update behavioral psychometric info
-    """
-    permission_classes = [IsAuthenticated]
+# OLD VIEWS - REMOVED (Models no longer exist)
+# These views referenced old models that have been replaced by the new consolidated structure:
+# - BankingFinancialAccess -> Replaced by FinancialBehavior
+# - CreditLiabilities -> Replaced by FinancialBehavior  
+# - SavingsInsurance -> Replaced by ProtectionReadiness
+# - ExpensesObligations -> Removed (not in new structure)
+# - BehavioralPsychometric -> Replaced by FinancialBehavior
+# - GovernmentSchemeEligibility -> Removed (not in new structure)
 
-    def get(self, request):
-        try:
-            behavior = BehavioralPsychometric.objects.get(user=request.user)
-            serializer = BehavioralPsychometricSerializer(behavior)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except BehavioralPsychometric.DoesNotExist:
-            return Response(
-                {"detail": "Behavioral psychometric information not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    def post(self, request):
-        try:
-            behavior = BehavioralPsychometric.objects.get(user=request.user)
-            serializer = BehavioralPsychometricSerializer(behavior, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            update_progress(request.user , "behavioral_psychometric" )
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except BehavioralPsychometric.DoesNotExist:
-            serializer = BehavioralPsychometricSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def put(self, request):
-        return self._update(request, partial=False)
-
-    def patch(self, request):
-        return self._update(request, partial=True)
-
-    def _update(self, request, partial=False):
-        try:
-            behavior = BehavioralPsychometric.objects.get(user=request.user)
-            serializer = BehavioralPsychometricSerializer(behavior, data=request.data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except BehavioralPsychometric.DoesNotExist:
-            return Response(
-                {"detail": "Behavioral psychometric information not found. Use POST to create."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-
-class GovernmentSchemeEligibilityView(APIView):
-    """
-    GET /api/finance/government-scheme/ - Get government scheme eligibility info
-    POST /api/finance/government-scheme/ - Create or update government scheme eligibility info
-    PUT /api/finance/government-scheme/ - Update government scheme eligibility info
-    PATCH /api/finance/government-scheme/ - Partial update government scheme eligibility info
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        try:
-            govt = GovernmentSchemeEligibility.objects.get(user=request.user)
-            serializer = GovernmentSchemeEligibilitySerializer(govt)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except GovernmentSchemeEligibility.DoesNotExist:
-            return Response(
-                {"detail": "Government scheme eligibility information not found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
-
-    def post(self, request):
-        try:
-            govt = GovernmentSchemeEligibility.objects.get(user=request.user)
-            serializer = GovernmentSchemeEligibilitySerializer(govt, data=request.data, partial=True)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            update_progress(request.user , "government_scheme_eligibility" )
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except GovernmentSchemeEligibility.DoesNotExist:
-            serializer = GovernmentSchemeEligibilitySerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def put(self, request):
-        return self._update(request, partial=False)
-
-    def patch(self, request):
-        return self._update(request, partial=True)
-
-    def _update(self, request, partial=False):
-        try:
-            govt = GovernmentSchemeEligibility.objects.get(user=request.user)
-            serializer = GovernmentSchemeEligibilitySerializer(govt, data=request.data, partial=partial)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        except GovernmentSchemeEligibility.DoesNotExist:
-            return Response(
-                {"detail": "Government scheme eligibility information not found. Use POST to create."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+# Use new endpoints instead:
+# - /api/finance/financial-behavior/ (Q16-19)
+# - /api/finance/protection-readiness/ (Q24-27)
 
 
 class UHFSScoreView(APIView):

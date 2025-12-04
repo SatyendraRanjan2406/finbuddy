@@ -2,12 +2,10 @@ from rest_framework import serializers
 from finance.models import (
     PersonalDemographic,
     IncomeEmployment,
-    BankingFinancialAccess,
-    CreditLiabilities,
-    SavingsInsurance,
-    ExpensesObligations,
-    BehavioralPsychometric,
-    GovernmentSchemeEligibility,
+    IncomeStability,
+    FinancialBehavior,
+    ReliabilityTenure,
+    ProtectionReadiness,
     UHFSScore,
 )
 
@@ -68,97 +66,90 @@ class IncomeEmploymentSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "primary_income_source",
-            "monthly_income_range",
-            "working_days_per_month",
-            "income_variability",
-            "mode_of_payment",
         ]
         read_only_fields = ["id"]
 
 
-class BankingFinancialAccessSerializer(serializers.ModelSerializer):
+class IncomeStabilitySerializer(serializers.ModelSerializer):
     class Meta:
-        model = BankingFinancialAccess
+        model = IncomeStability
         fields = [
             "id",
-            "has_bank_account",
-            "type_of_account",
-            "has_upi_wallet",
-            "avg_monthly_bank_balance",
-            "bank_txn_per_month",
-            "has_credit_card_bnpl",
+            "monthly_income",
+            "income_drop_frequency",
+            "working_days_per_week",
+            "income_trend",
+            "score_a",
+            "score_b",
+            "score_c",
+            "score_d",
+            "subcategory_score",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "score_a", "score_b", "score_c", "score_d", "subcategory_score"]
 
 
-class CreditLiabilitiesSerializer(serializers.ModelSerializer):
+class FinancialBehaviorSerializer(serializers.ModelSerializer):
     class Meta:
-        model = CreditLiabilities
+        model = FinancialBehavior
         fields = [
             "id",
-            "existing_loans",
-            "type_of_loan",
-            "monthly_emi",
-            "missed_payments_6m",
-            "informal_borrowing",
+            "monthly_savings",
+            "saving_methods",
+            "missed_payments",
+            "bill_payment_timeliness",
+            "score_a",
+            "score_b",
+            "score_c",
+            "score_d",
+            "subcategory_score",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "score_a", "score_b", "score_c", "score_d", "subcategory_score"]
 
 
-class SavingsInsuranceSerializer(serializers.ModelSerializer):
+class ReliabilityTenureSerializer(serializers.ModelSerializer):
     class Meta:
-        model = SavingsInsurance
+        model = ReliabilityTenure
         fields = [
             "id",
-            "regular_savings_habit",
-            "savings_amount_per_month",
-            "has_insurance",
-            "type_of_insurance",
-            "has_pension_pf",
+            "platform_tenure",
+            "active_days_per_week",
+            "cancellation_frequency",
+            "customer_rating",
+            "score_a",
+            "score_b",
+            "score_c",
+            "score_d",
+            "subcategory_score",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "score_a", "score_b", "score_c", "score_d", "subcategory_score"]
 
 
-class ExpensesObligationsSerializer(serializers.ModelSerializer):
+class ProtectionReadinessSerializer(serializers.ModelSerializer):
     class Meta:
-        model = ExpensesObligations
+        model = ProtectionReadiness
         fields = [
             "id",
-            "rent_per_month",
-            "utilities_expense",
-            "education_medical_expense",
-            "avg_household_spend",
-            "dependents_expense",
+            "has_health_insurance",
+            "has_accident_life_insurance",
+            "emergency_expense_handling",
+            "current_savings_fund",
+            "score_a",
+            "score_b",
+            "score_c",
+            "score_d",
+            "subcategory_score",
         ]
-        read_only_fields = ["id"]
+        read_only_fields = ["id", "score_a", "score_b", "score_c", "score_d", "subcategory_score"]
 
 
-class BehavioralPsychometricSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BehavioralPsychometric
-        fields = [
-            "id",
-            "set_monthly_savings_goals",
-            "track_expenses",
-            "extra_income_behaviour",
-            "payment_miss_frequency",
-            "digital_comfort_level",
-        ]
-        read_only_fields = ["id"]
-
-
-class GovernmentSchemeEligibilitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = GovernmentSchemeEligibility
-        fields = [
-            "id",
-            "has_aadhaar",
-            "has_pan",
-            "enrolled_in_scheme",
-            "scheme_names",
-            "monthly_govt_benefit",
-        ]
-        read_only_fields = ["id"]
+# OLD SERIALIZERS REMOVED - Models no longer exist
+# These serializers referenced old models that have been replaced:
+# - BankingFinancialAccess -> Replaced by FinancialBehavior
+# - CreditLiabilities -> Replaced by FinancialBehavior
+# - SavingsInsurance -> Replaced by ProtectionReadiness
+# - ExpensesObligations -> Removed (not in new structure)
+# - BehavioralPsychometric -> Replaced by FinancialBehavior
+# - GovernmentSchemeEligibility -> Removed (not in new structure)
 
 
 class UHFSScoreSerializer(serializers.ModelSerializer):

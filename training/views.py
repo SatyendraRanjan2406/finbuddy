@@ -308,7 +308,7 @@ class UserTrainingProgressView(APIView):
         
         elif action == "complete":
             from finance.models import UserFinancialLiteracy
-            from finance.services.uhfs import calculate_and_store_uhfs
+            from finance.services.uhfs_v2 import calculate_and_store_uhfs
             
             progress.is_completed = True
             progress.questions_completed = True
@@ -514,7 +514,7 @@ def submit_training_answer(request):
             # Update UHFS if not already done
             if not progress.score_added_to_uhfs:
                 from finance.models import UserFinancialLiteracy
-                from finance.services.uhfs import calculate_and_store_uhfs
+                from finance.services.uhfs_v2 import calculate_and_store_uhfs
                 
                 # Get or create UserFinancialLiteracy
                 literacy, _ = UserFinancialLiteracy.objects.get_or_create(user=request.user)

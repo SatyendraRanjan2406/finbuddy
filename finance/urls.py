@@ -2,15 +2,13 @@ from django.urls import path
 from finance.views import (
     PersonalDemographicView,
     IncomeEmploymentView,
-    BankingFinancialAccessView,
-    CreditLiabilitiesView,
+    IncomeStabilityView,
+    FinancialBehaviorView,
+    ReliabilityTenureView,
+    ProtectionReadinessView,
     ProductByNameView,
     ProductListView,
     ProductDetailView,
-    SavingsInsuranceView,
-    ExpensesObligationsView,
-    BehavioralPsychometricView,
-    GovernmentSchemeEligibilityView,
     UHFSScoreView,
     get_suggested_products,
     populate_products,
@@ -34,14 +32,22 @@ from .purchase_views import (
 
 
 urlpatterns = [
-    path("personal-demographic/", PersonalDemographicView.as_view(), name="personal-demographic"),
-    path("income-employment/", IncomeEmploymentView.as_view(), name="income-employment"),
-    path("banking-access/", BankingFinancialAccessView.as_view(), name="banking-access"),
-    path("credit-liabilities/", CreditLiabilitiesView.as_view(), name="credit-liabilities"),
-    path("savings-insurance/", SavingsInsuranceView.as_view(), name="savings-insurance"),
-    path("expenses-obligations/", ExpensesObligationsView.as_view(), name="expenses-obligations"),
-    path("behavioral-psychometric/", BehavioralPsychometricView.as_view(), name="behavioral-psychometric"),
-    path("government-scheme/", GovernmentSchemeEligibilityView.as_view(), name="government-scheme"),
+    # New consolidated questionnaire structure (all questions per category on one page)
+    path("personal-demographic/", PersonalDemographicView.as_view(), name="personal-demographic"),  # Q1-10
+    path("income-employment/", IncomeEmploymentView.as_view(), name="income-employment"),  # Q11
+    path("income-stability/", IncomeStabilityView.as_view(), name="income-stability"),  # Q12-15
+    path("financial-behavior/", FinancialBehaviorView.as_view(), name="financial-behavior"),  # Q16-19
+    path("reliability-tenure/", ReliabilityTenureView.as_view(), name="reliability-tenure"),  # Q20-23
+    path("protection-readiness/", ProtectionReadinessView.as_view(), name="protection-readiness"),  # Q24-27
+    
+    # Old endpoints removed (models no longer exist):
+    # - banking-access/ -> Use financial-behavior/
+    # - credit-liabilities/ -> Use financial-behavior/
+    # - savings-insurance/ -> Use protection-readiness/
+    # - expenses-obligations/ -> Removed
+    # - behavioral-psychometric/ -> Use financial-behavior/
+    # - government-scheme/ -> Removed
+    
     path("uhfs-score/", UHFSScoreView.as_view(), name="uhfs-score"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
 

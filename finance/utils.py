@@ -1,24 +1,31 @@
-from common.constants import QUESTIONNAIRE_STEPS
 from .models import (
-    PersonalDemographic, IncomeEmployment, BankingFinancialAccess,
-    CreditLiabilities, SavingsInsurance, ExpensesObligations,
-    BehavioralPsychometric, GovernmentSchemeEligibility, UserFinancialLiteracy
+    PersonalDemographic, IncomeEmployment, IncomeStability,
+    FinancialBehavior, ReliabilityTenure, ProtectionReadiness,
+    UserFinancialLiteracy, OnboardingProgress
 )
+
+# New questionnaire steps (consolidated structure)
+QUESTIONNAIRE_STEPS = [
+    "personal_demographic",
+    "income_employment",
+    "income_stability",
+    "financial_behavior",
+    "reliability_tenure",
+    "protection_readiness",
+    "financial_literacy",
+]
 
 MODEL_MAP = {
     "personal_demographic": PersonalDemographic,
     "income_employment": IncomeEmployment,
-    "banking_financial_access": BankingFinancialAccess,
-    "credit_liabilities": CreditLiabilities,
-    "savings_insurance": SavingsInsurance,
-    "expenses_obligations": ExpensesObligations,
-    "behavioral_psychometric": BehavioralPsychometric,
-    "government_scheme_eligibility": GovernmentSchemeEligibility,
-    "user_financial_literacy": UserFinancialLiteracy
+    "income_stability": IncomeStability,
+    "financial_behavior": FinancialBehavior,
+    "reliability_tenure": ReliabilityTenure,
+    "protection_readiness": ProtectionReadiness,
+    "financial_literacy": UserFinancialLiteracy,
 }
 
 
-from .models import OnboardingProgress
 
 
 def update_progress(user, step_name):

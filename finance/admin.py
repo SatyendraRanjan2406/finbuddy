@@ -1,15 +1,13 @@
 from django.contrib import admin
 
 from finance.models import (
-    BehavioralPsychometric,
-    BankingFinancialAccess,
-    CreditLiabilities,
-    ExpensesObligations,
-    GovernmentSchemeEligibility,
     IncomeEmployment,
+    IncomeStability,
+    FinancialBehavior,
+    ReliabilityTenure,
+    ProtectionReadiness,
     PersonalDemographic,
     Product,
-    SavingsInsurance,
     UHFSScore,
     UserFinancialLiteracy,
     ProductPurchase,
@@ -29,66 +27,55 @@ class PersonalDemographicAdmin(admin.ModelAdmin):
 
 @admin.register(IncomeEmployment)
 class IncomeEmploymentAdmin(admin.ModelAdmin):
-    list_display = ("user", "primary_income_source", "monthly_income_range", "working_days_per_month", "income_variability")
-    search_fields = ("user__username", "primary_income_source", "monthly_income_range")
-    list_filter = ("monthly_income_range", "income_variability", "mode_of_payment")
+    list_display = ("user", "primary_income_source", "created_at", "updated_at")
+    search_fields = ("user__username", "primary_income_source")
+    list_filter = ("created_at", "updated_at")
     raw_id_fields = ("user",)
 
 
-@admin.register(BankingFinancialAccess)
-class BankingFinancialAccessAdmin(admin.ModelAdmin):
-    list_display = ("user", "has_bank_account", "type_of_account", "has_upi_wallet", "has_credit_card_bnpl")
-    search_fields = ("user__username", "type_of_account")
-    list_filter = ("has_bank_account", "has_upi_wallet", "has_credit_card_bnpl", "type_of_account")
-    raw_id_fields = ("user",)
-
-
-@admin.register(CreditLiabilities)
-class CreditLiabilitiesAdmin(admin.ModelAdmin):
-    list_display = ("user", "existing_loans", "type_of_loan", "monthly_emi", "missed_payments_6m", "informal_borrowing")
-    search_fields = ("user__username", "type_of_loan")
-    list_filter = ("existing_loans", "missed_payments_6m", "informal_borrowing", "type_of_loan")
-    raw_id_fields = ("user",)
-
-
-@admin.register(SavingsInsurance)
-class SavingsInsuranceAdmin(admin.ModelAdmin):
-    list_display = ("user", "regular_savings_habit", "savings_amount_per_month", "has_insurance", "has_pension_pf")
-    search_fields = ("user__username", "type_of_insurance", "has_insurance")
-    list_filter = ("regular_savings_habit", "has_insurance", "has_pension_pf", "type_of_insurance")
-    raw_id_fields = ("user",)
-
-
-@admin.register(ExpensesObligations)
-class ExpensesObligationsAdmin(admin.ModelAdmin):
-    list_display = ("user", "rent_per_month", "utilities_expense", "avg_household_spend", "dependents_expense")
+@admin.register(IncomeStability)
+class IncomeStabilityAdmin(admin.ModelAdmin):
+    list_display = ("user", "monthly_income", "income_drop_frequency", "working_days_per_week", "income_trend", "subcategory_score")
     search_fields = ("user__username",)
-    list_filter = ()
+    list_filter = ("monthly_income", "income_drop_frequency", "income_trend")
     raw_id_fields = ("user",)
+    readonly_fields = ("score_a", "score_b", "score_c", "score_d", "subcategory_score")
 
 
-@admin.register(BehavioralPsychometric)
-class BehavioralPsychometricAdmin(admin.ModelAdmin):
-    list_display = ("user", "set_monthly_savings_goals", "track_expenses", "extra_income_behaviour", "digital_comfort_level")
-    search_fields = ("user__username", "extra_income_behaviour", "payment_miss_frequency")
-    list_filter = ("set_monthly_savings_goals", "track_expenses", "extra_income_behaviour", "payment_miss_frequency")
+@admin.register(FinancialBehavior)
+class FinancialBehaviorAdmin(admin.ModelAdmin):
+    list_display = ("user", "monthly_savings", "missed_payments", "bill_payment_timeliness", "subcategory_score")
+    search_fields = ("user__username",)
+    list_filter = ("monthly_savings", "missed_payments", "bill_payment_timeliness")
     raw_id_fields = ("user",)
+    readonly_fields = ("score_a", "score_b", "score_c", "score_d", "subcategory_score")
 
 
-@admin.register(GovernmentSchemeEligibility)
-class GovernmentSchemeEligibilityAdmin(admin.ModelAdmin):
-    list_display = ("user", "has_aadhaar", "has_pan", "enrolled_in_scheme", "monthly_govt_benefit")
-    search_fields = ("user__username", "scheme_names")
-    list_filter = ("has_aadhaar", "has_pan", "enrolled_in_scheme")
+@admin.register(ReliabilityTenure)
+class ReliabilityTenureAdmin(admin.ModelAdmin):
+    list_display = ("user", "platform_tenure", "active_days_per_week", "cancellation_frequency", "customer_rating", "subcategory_score")
+    search_fields = ("user__username",)
+    list_filter = ("platform_tenure", "cancellation_frequency", "customer_rating")
     raw_id_fields = ("user",)
+    readonly_fields = ("score_a", "score_b", "score_c", "score_d", "subcategory_score")
+
+
+@admin.register(ProtectionReadiness)
+class ProtectionReadinessAdmin(admin.ModelAdmin):
+    list_display = ("user", "has_health_insurance", "has_accident_life_insurance", "emergency_expense_handling", "current_savings_fund", "subcategory_score")
+    search_fields = ("user__username",)
+    list_filter = ("has_health_insurance", "has_accident_life_insurance", "emergency_expense_handling")
+    raw_id_fields = ("user",)
+    readonly_fields = ("score_a", "score_b", "score_c", "score_d", "subcategory_score")
 
 
 @admin.register(UserFinancialLiteracy)
 class UserFinancialLiteracyAdmin(admin.ModelAdmin):
-    list_display = ("user", "modules_completed", "average_quiz_score")
+    list_display = ("user", "modules_completed", "average_quiz_score", "literacy_score")
     search_fields = ("user__username",)
     list_filter = ("modules_completed",)
     raw_id_fields = ("user",)
+    readonly_fields = ("literacy_score",)
 
 
 @admin.register(UHFSScore)

@@ -55,94 +55,327 @@ def get_video_verification_upload_path(instance, filename):
 
 
 class PersonalDemographic(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="personal")
+    """
+    Questions 1-10: Personal & Demographic Information
+    All questions on one page
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="personal_demographic")
 
-    full_name = models.CharField(max_length=200, null=True, blank=True)  # From Aadhaar
-    age = models.IntegerField(null=True, blank=True)                     # From Aadhaar
-    gender = models.CharField(max_length=20, null=True, blank=True)       # Aadhaar: Male/Female/Other
-    state = models.CharField(max_length=100, null=True, blank=True)       # Aadhaar/User
+    # Q1: Full Name
+    full_name = models.CharField(max_length=200, null=True, blank=True)
+    
+    # Q2: Age
+    age = models.IntegerField(null=True, blank=True)
+    
+    # Q3: Gender
+    GENDER_CHOICES = [
+        ("Male", "Male"),
+        ("Female", "Female"),
+        ("Other", "Other"),
+    ]
+    gender = models.CharField(max_length=20, choices=GENDER_CHOICES, null=True, blank=True)
+    
+    # Q4: State
+    state = models.CharField(max_length=100, null=True, blank=True)
+    
+    # Q5: City / District
     city_district = models.CharField(max_length=100, null=True, blank=True)
-    occupation_type = models.CharField(max_length=100, null=True, blank=True)  # Gig/Farmer/Retailer/etc.
-    marital_status = models.CharField(max_length=50, null=True, blank=True)
-    children = models.CharField(max_length=50, null=True, blank=True)          # “Yes / No / Daughter”
+    
+    # Q6: Occupation Type
+    OCCUPATION_CHOICES = [
+        ("Gig worker", "Gig worker"),
+        ("Small retailer", "Small retailer"),
+        ("Farmer", "Farmer"),
+        ("Other", "Other"),
+    ]
+    occupation_type = models.CharField(max_length=100, choices=OCCUPATION_CHOICES, null=True, blank=True)
+    
+    # Q7: Marital Status
+    MARITAL_STATUS_CHOICES = [
+        ("Married", "Married"),
+        ("Single", "Single"),
+        ("Other", "Other"),
+    ]
+    marital_status = models.CharField(max_length=50, choices=MARITAL_STATUS_CHOICES, null=True, blank=True)
+    
+    # Q8: Children
+    CHILDREN_CHOICES = [
+        ("Yes", "Yes"),
+        ("No", "No"),
+        ("Daughter", "Daughter"),
+    ]
+    children = models.CharField(max_length=50, choices=CHILDREN_CHOICES, null=True, blank=True)
+    
+    # Q9: Dependents
     dependents = models.IntegerField(null=True, blank=True)
-    education_level = models.CharField(max_length=100, null=True, blank=True)  # None/School/College/etc.
+    
+    # Q10: Education Level
+    EDUCATION_CHOICES = [
+        ("None", "None"),
+        ("School", "School"),
+        ("College", "College"),
+        ("Graduate", "Graduate"),
+        ("Other", "Other"),
+    ]
+    education_level = models.CharField(max_length=100, choices=EDUCATION_CHOICES, null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Personal Demographic - {self.user.username}"
 
 
 class IncomeEmployment(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="income")
-
-    primary_income_source = models.CharField(max_length=200, null=True, blank=True)  # Swiggy/Zomato/Farming etc.
-    monthly_income_range = models.CharField(max_length=50, null=True, blank=True)    # <10k /10–20k/20–30k/>30k
-    working_days_per_month = models.IntegerField(null=True, blank=True)
-    income_variability = models.CharField(max_length=50, null=True, blank=True)      # Same/Fluctuates
-    mode_of_payment = models.CharField(max_length=50, null=True, blank=True)         # Cash/Bank/UPI
-
-
-class BankingFinancialAccess(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="banking")
-
-    has_bank_account = models.BooleanField(default=False)
-    type_of_account = models.CharField(max_length=50, null=True, blank=True)  # Savings/Current/None
-    has_upi_wallet = models.BooleanField(default=False)
-    avg_monthly_bank_balance = models.CharField(max_length=50, null=True, blank=True)  # Range slider
-    bank_txn_per_month = models.IntegerField(null=True, blank=True)
-    has_credit_card_bnpl = models.BooleanField(default=False)
+    """
+    Question 11: Income & Employment
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="income_employment")
+    
+    # Q11: Primary Source of Income
+    primary_income_source = models.CharField(max_length=200, null=True, blank=True)  # e.g. Swiggy, Zomato, Self-employed, Farming
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Income Employment - {self.user.username}"
 
 
-class CreditLiabilities(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="credit")
+class IncomeStability(models.Model):
+    """
+    Questions 12-15: Income Stability (Subcategory A, B, C, D)
+    All questions on one page
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="income_stability")
+    
+    # Q12 (A): Monthly income from all platforms
+    MONTHLY_INCOME_CHOICES = [
+        ("₹5,000–10,000", "₹5,000–10,000"),
+        ("₹10,001–20,000", "₹10,001–20,000"),
+        ("₹20,001–30,000", "₹20,001–30,000"),
+        ("₹30,001–50,000", "₹30,001–50,000"),
+        ("₹50,000+", "₹50,000+"),
+    ]
+    monthly_income = models.CharField(max_length=50, choices=MONTHLY_INCOME_CHOICES, null=True, blank=True)
+    
+    # Q13 (B): Income drop frequency in last 3 months
+    INCOME_DROP_CHOICES = [
+        ("Never", "Never"),
+        ("Once", "Once"),
+        ("Often", "Often"),
+        ("Almost every month", "Almost every month"),
+    ]
+    income_drop_frequency = models.CharField(max_length=50, choices=INCOME_DROP_CHOICES, null=True, blank=True)
+    
+    # Q14 (C): Average working days per week
+    WORKING_DAYS_CHOICES = [
+        ("1–2 days", "1–2 days"),
+        ("3–4 days", "3–4 days"),
+        ("5–6 days", "5–6 days"),
+        ("Every day", "Every day"),
+    ]
+    working_days_per_week = models.CharField(max_length=50, choices=WORKING_DAYS_CHOICES, null=True, blank=True)
+    
+    # Q15 (D): Income trend over past 6 months
+    INCOME_TREND_CHOICES = [
+        ("Increased", "Increased"),
+        ("Stable", "Stable"),
+        ("Decreased", "Decreased"),
+    ]
+    income_trend = models.CharField(max_length=50, choices=INCOME_TREND_CHOICES, null=True, blank=True)
+    
+    # Calculated scores (0-1)
+    score_a = models.FloatField(null=True, blank=True, help_text="Q12 score")
+    score_b = models.FloatField(null=True, blank=True, help_text="Q13 score")
+    score_c = models.FloatField(null=True, blank=True, help_text="Q14 score")
+    score_d = models.FloatField(null=True, blank=True, help_text="Q15 score")
+    subcategory_score = models.FloatField(null=True, blank=True, help_text="Weighted subcategory score")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Income Stability - {self.user.username}"
 
-    existing_loans = models.BooleanField(default=False)
-    type_of_loan = models.CharField(max_length=100, null=True, blank=True) # Personal/Vehicle/Business
-    monthly_emi = models.IntegerField(null=True, blank=True)
-    missed_payments_6m = models.BooleanField(default=False)
-    informal_borrowing = models.BooleanField(default=False)
+
+class FinancialBehavior(models.Model):
+    """
+    Questions 16-19: Financial Behavior (Subcategory A, B, C, D)
+    All questions on one page
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="financial_behavior")
+    
+    # Q16 (A): Monthly savings amount
+    MONTHLY_SAVINGS_CHOICES = [
+        ("Less than ₹500", "Less than ₹500"),
+        ("₹500–₹1,000", "₹500–₹1,000"),
+        ("₹1,000–₹3,000", "₹1,000–₹3,000"),
+        ("More than ₹3,000", "More than ₹3,000"),
+    ]
+    monthly_savings = models.CharField(max_length=50, choices=MONTHLY_SAVINGS_CHOICES, null=True, blank=True)
+    
+    # Q17 (B): How do you usually save money (checkboxes - stored as JSON array)
+    SAVING_METHOD_CHOICES = [
+        ("Bank account", "Bank account"),
+        ("Wallet (Paytm, GPay, etc.)", "Wallet (Paytm, GPay, etc.)"),
+        ("Cash at home", "Cash at home"),
+        ("Not saving currently", "Not saving currently"),
+    ]
+    saving_methods = models.JSONField(default=list, null=True, blank=True, help_text="Array of saving method choices")
+    
+    # Q18 (C): Missed EMI/loan/BNPL payments in last 3 months
+    MISSED_PAYMENT_CHOICES = [
+        ("Yes", "Yes"),
+        ("No", "No"),
+        ("Not applicable", "Not applicable"),
+    ]
+    missed_payments = models.CharField(max_length=50, choices=MISSED_PAYMENT_CHOICES, null=True, blank=True)
+    
+    # Q19 (D): Bill payment timeliness
+    BILL_PAYMENT_CHOICES = [
+        ("Always", "Always"),
+        ("Mostly", "Mostly"),
+        ("Sometimes", "Sometimes"),
+        ("Rarely", "Rarely"),
+    ]
+    bill_payment_timeliness = models.CharField(max_length=50, choices=BILL_PAYMENT_CHOICES, null=True, blank=True)
+    
+    # Calculated scores (0-1)
+    score_a = models.FloatField(null=True, blank=True, help_text="Q16 score")
+    score_b = models.FloatField(null=True, blank=True, help_text="Q17 score")
+    score_c = models.FloatField(null=True, blank=True, help_text="Q18 score")
+    score_d = models.FloatField(null=True, blank=True, help_text="Q19 score")
+    subcategory_score = models.FloatField(null=True, blank=True, help_text="Weighted subcategory score")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Financial Behavior - {self.user.username}"
 
 
-class SavingsInsurance(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="savings")
+class ReliabilityTenure(models.Model):
+    """
+    Questions 20-23: Reliability & Tenure (Subcategory A, B, C, D)
+    All questions on one page
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="reliability_tenure")
+    
+    # Q20 (A): Platform tenure
+    TENURE_CHOICES = [
+        ("Less than 3 months", "Less than 3 months"),
+        ("3–6 months", "3–6 months"),
+        ("6–12 months", "6–12 months"),
+        ("More than 1 year", "More than 1 year"),
+    ]
+    platform_tenure = models.CharField(max_length=50, choices=TENURE_CHOICES, null=True, blank=True)
+    
+    # Q21 (B): Days per week completing at least one order/ride/job
+    ACTIVE_DAYS_CHOICES = [
+        ("1–2", "1–2"),
+        ("3–4", "3–4"),
+        ("5–6", "5–6"),
+        ("7 days", "7 days"),
+    ]
+    active_days_per_week = models.CharField(max_length=50, choices=ACTIVE_DAYS_CHOICES, null=True, blank=True)
+    
+    # Q22 (C): Cancellation frequency
+    CANCELLATION_CHOICES = [
+        ("Rarely", "Rarely"),
+        ("Sometimes", "Sometimes"),
+        ("Often", "Often"),
+    ]
+    cancellation_frequency = models.CharField(max_length=50, choices=CANCELLATION_CHOICES, null=True, blank=True)
+    
+    # Q23 (D): Customer rating (1-5 stars)
+    RATING_CHOICES = [
+        ("1", "1 star"),
+        ("2", "2 stars"),
+        ("3", "3 stars"),
+        ("4", "4 stars"),
+        ("5", "5 stars"),
+    ]
+    customer_rating = models.CharField(max_length=10, choices=RATING_CHOICES, null=True, blank=True)
+    
+    # Calculated scores (0-1)
+    score_a = models.FloatField(null=True, blank=True, help_text="Q20 score")
+    score_b = models.FloatField(null=True, blank=True, help_text="Q21 score")
+    score_c = models.FloatField(null=True, blank=True, help_text="Q22 score")
+    score_d = models.FloatField(null=True, blank=True, help_text="Q23 score")
+    subcategory_score = models.FloatField(null=True, blank=True, help_text="Weighted subcategory score")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Reliability & Tenure - {self.user.username}"
 
-    regular_savings_habit = models.BooleanField(default=False)
-    savings_amount_per_month = models.CharField(max_length=50, null=True, blank=True)  # Range dropdown
-    has_insurance = models.CharField(max_length=200, null=True, blank=True)  # Multi-select: Health/Life/Accident
-    type_of_insurance = models.CharField(max_length=50, null=True, blank=True) # Govt/Private
-    has_pension_pf = models.BooleanField(default=False)
 
-
-class ExpensesObligations(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="expenses")
-
-    rent_per_month = models.IntegerField(null=True, blank=True)
-    utilities_expense = models.IntegerField(null=True, blank=True)
-    education_medical_expense = models.IntegerField(null=True, blank=True)
-    avg_household_spend = models.IntegerField(null=True, blank=True)
-    dependents_expense = models.IntegerField(null=True, blank=True)
-
-
-class BehavioralPsychometric(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="behavior")
-
-    set_monthly_savings_goals = models.BooleanField(default=False)
-    track_expenses = models.BooleanField(default=False)
-    extra_income_behaviour = models.CharField(max_length=50, null=True, blank=True)  # Save/Spend/Both
-    payment_miss_frequency = models.CharField(max_length=50, null=True, blank=True)  # Never/Sometimes/Often
-    digital_comfort_level = models.IntegerField(null=True, blank=True)  # 1–5 rating
-
-
-class GovernmentSchemeEligibility(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="govt")
-
-    has_aadhaar = models.BooleanField(default=False)
-    has_pan = models.BooleanField(default=False)
-    enrolled_in_scheme = models.BooleanField(default=False)
-    scheme_names = models.CharField(max_length=300, null=True, blank=True)
-    monthly_govt_benefit = models.IntegerField(null=True, blank=True)
+class ProtectionReadiness(models.Model):
+    """
+    Questions 24-27: Protection Readiness (Subcategory A, B, C, D)
+    All questions on one page
+    """
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="protection_readiness")
+    
+    # Q24 (A): Health insurance
+    INSURANCE_CHOICES = [
+        ("Yes", "Yes"),
+        ("No", "No"),
+        ("Not sure", "Not sure"),
+    ]
+    has_health_insurance = models.CharField(max_length=50, choices=INSURANCE_CHOICES, null=True, blank=True)
+    
+    # Q25 (B): Accident/life insurance
+    has_accident_life_insurance = models.CharField(max_length=50, choices=INSURANCE_CHOICES, null=True, blank=True)
+    
+    # Q26 (C): Emergency expense handling (₹10,000)
+    EMERGENCY_CHOICES = [
+        ("Immediately", "Immediately"),
+        ("Within 1 week", "Within 1 week"),
+        ("Within 1 month", "Within 1 month"),
+        ("Cannot manage", "Cannot manage"),
+    ]
+    emergency_expense_handling = models.CharField(max_length=50, choices=EMERGENCY_CHOICES, null=True, blank=True)
+    
+    # Q27 (D): Current savings/emergency funds
+    SAVINGS_FUND_CHOICES = [
+        ("₹0–500", "₹0–500"),
+        ("₹501–1,000", "₹501–1,000"),
+        ("₹1,001–5,000", "₹1,001–5,000"),
+        ("₹5,000+", "₹5,000+"),
+    ]
+    current_savings_fund = models.CharField(max_length=50, choices=SAVINGS_FUND_CHOICES, null=True, blank=True)
+    
+    # Calculated scores (0-1)
+    score_a = models.FloatField(null=True, blank=True, help_text="Q24 score")
+    score_b = models.FloatField(null=True, blank=True, help_text="Q25 score")
+    score_c = models.FloatField(null=True, blank=True, help_text="Q26 score")
+    score_d = models.FloatField(null=True, blank=True, help_text="Q27 score")
+    subcategory_score = models.FloatField(null=True, blank=True, help_text="Weighted subcategory score")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Protection Readiness - {self.user.username}"
 
 class UserFinancialLiteracy(models.Model):
+    """
+    Question 28: Financial Literacy
+    Based on training modules completed with quiz scores
+    """
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="financial_literacy")
     modules_completed = models.IntegerField(default=0)
-    average_quiz_score = models.FloatField(default=0.0) # 0–100
+    average_quiz_score = models.FloatField(default=0.0, help_text="Average quiz score (0-100)")
+    literacy_score = models.FloatField(null=True, blank=True, help_text="Calculated score (0-1) based on modules and quiz scores")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Financial Literacy - {self.user.username} (Score: {self.literacy_score or 0.0})"
 
 
 
@@ -314,17 +547,19 @@ class UserNotification(models.Model):
 
 
 class OnboardingProgress(models.Model):
+    """
+    Tracks onboarding progress for the new consolidated questionnaire structure.
+    Each category is a single page with all questions.
+    """
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     STEP_CHOICES = [
-        ("personal_demographic", "Personal Demographic"),
-        ("income_employment", "Income & Employment"),
-        ("banking_financial_access", "Banking & Financial Access"),
-        ("credit_liabilities", "Credit & Liabilities"),
-        ("savings_insurance", "Savings & Insurance"),
-        ("expenses_obligations", "Expenses & Obligations"),
-        ("behavioral_psychometric", "Behavioral & Psychometric"),
-        ("government_scheme_eligibility", "Government Scheme Eligibility"),
-        ("user_financial_literacy", "User Financial Literacy"),
+        ("personal_demographic", "Personal & Demographic (Q1-10)"),
+        ("income_employment", "Income & Employment (Q11)"),
+        ("income_stability", "Income Stability (Q12-15)"),
+        ("financial_behavior", "Financial Behavior (Q16-19)"),
+        ("reliability_tenure", "Reliability & Tenure (Q20-23)"),
+        ("protection_readiness", "Protection Readiness (Q24-27)"),
+        ("financial_literacy", "Financial Literacy (Q28)"),
     ]
     
     # Step the user is currently answering

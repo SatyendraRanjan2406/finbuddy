@@ -11,7 +11,7 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from typing import Optional
 
 from finance.models import UHFSScore
-from finance.services.uhfs import calculate_and_store_uhfs
+from finance.services.uhfs_v2 import calculate_and_store_uhfs
 from finance.services.products_util import get_suggested_products_util
 from finance.serializers import ProductSerializer
 from training.models import TrainingSection
