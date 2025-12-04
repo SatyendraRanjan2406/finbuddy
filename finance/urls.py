@@ -14,7 +14,7 @@ from finance.views import (
     UHFSScoreView,
     get_suggested_products,
     populate_products,
-    
+    RiskRecommendationView,
 )
 
 from .search_views import (
@@ -56,6 +56,9 @@ urlpatterns = [
     path("products/suggested/", get_suggested_products),
 
     path("populate/" , populate_products),
+    
+    # Risk-based recommendations
+    path("risk-recommendation/", RiskRecommendationView.as_view(), name="risk-recommendation"),
 
     path("apply/", apply_for_product),
     path("apply/verify-otp/", verify_otp),

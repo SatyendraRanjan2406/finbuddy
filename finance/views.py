@@ -14,6 +14,7 @@ from finance.models import (
     BehavioralPsychometric,
     GovernmentSchemeEligibility,
     UHFSScore,
+    RiskRecommendation,
 )
 from finance.serializers import (
     PersonalDemographicSerializer,
@@ -25,6 +26,8 @@ from finance.serializers import (
     BehavioralPsychometricSerializer,
     GovernmentSchemeEligibilitySerializer,
     UHFSScoreSerializer,
+    RiskRecommendationRequestSerializer,
+    RiskRecommendationResponseSerializer,
 )
 from finance.services.products_util import get_suggested_products_util
 from finance.services.uhfs import calculate_and_store_uhfs
@@ -596,5 +599,86 @@ def populate_products(request):
             {"error": f"Required dependencies not installed: {str(e)}"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
+
+class RiskRecommendationView(APIView):
+    """
+    POST /api/finance/risk-recommendation/
+    
+    Get product recommendations based on risk category and risk level.
+    
+    Request Body:
+    {
+        "risk": "Income Stability" | "Financial Behavior" | "Reliability & Tenure" | "Protection Readiness",
+        "risk_level": "High" | "Medium" | "Low" (or with emoji: "🔴 High", "🟠 Medium", "🟢 Low")
+    }
+    
+    Response:
+    {
+        "risk_category": "Income Stability",
+        "risk_trigger": "Income volatility > 40% or <15 days active/month",
+        "risk_level": "🔴 High",
+        "recommended_instruments": ["PMMY (Mudra Loan)", "PM SVANidhi", "Post Office RD", ...],
+        "behavioral_tag": "Manage Income Volatility / Emergency Corpus",
+        "intro_section": "Your income is fluctuating right now..."
+    }
+    """
+    permission_classes = []  # AllowAny - can be accessed without authentication
+    
+    def post(self, request):
+        serializer = RiskRecommendationRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        risk_category = serializer.validated_data["risk"]
+        risk_level = serializer.validated_data["risk_level"]
+        
+        # Normalize risk_level (handle both with and without emoji)
+        risk_level_normalized = risk_level
+        if risk_level in ["High", "🔴 High"]:
+            risk_level_normalized = "🔴 High"
+        elif risk_level in ["Medium", "🟠 Medium"]:
+            risk_level_normalized = "🟠 Medium"
+        elif risk_level in ["Low", "🟢 Low"]:
+            risk_level_normalized = "🟢 Low"
+        
+        # Query for matching recommendations
+        recommendations = RiskRecommendation.objects.filter(
+            risk_category=risk_category,
+            risk_level=risk_level_normalized,
+            is_active=True
+        ).order_by("order")
+        
+        if not recommendations.exists():
+            # Try without emoji if not found
+            risk_level_fallback = risk_level.replace("🔴 ", "").replace("🟠 ", "").replace("🟢 ", "")
+            recommendations = RiskRecommendation.objects.filter(
+                risk_category=risk_category,
+                risk_level__in=[risk_level_normalized, risk_level_fallback],
+                is_active=True
+            ).order_by("order")
+        
+        if not recommendations.exists():
+            return Response(
+                {
+                    "error": "No recommendations found",
+                    "message": f"No recommendations found for risk category '{risk_category}' and risk level '{risk_level}'"
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Return the first matching recommendation (or all if multiple)
+        response_serializer = RiskRecommendationResponseSerializer(recommendations, many=True)
+        
+        # If only one result, return as object; if multiple, return as array
+        if len(response_serializer.data) == 1:
+            return Response(response_serializer.data[0], status=status.HTTP_200_OK)
+        else:
+            return Response(
+                {
+                    "count": len(response_serializer.data),
+                    "results": response_serializer.data
+                },
+                status=status.HTTP_200_OK
+            )
 
 

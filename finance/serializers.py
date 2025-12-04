@@ -14,7 +14,7 @@ from finance.models import (
 
 from rest_framework import serializers
 
-from .models import ProductPurchase, UserProduct, UserPremiumPayment, Product
+from .models import ProductPurchase, UserProduct, UserPremiumPayment, Product, RiskRecommendation
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -272,5 +272,45 @@ class ProductPurchaseInitiateSerializer(serializers.Serializer):
     full_name = serializers.CharField(max_length=255, required=False, allow_null=True, allow_blank=True, help_text="Full name (optional, uses authenticated user if not provided)")
     email = serializers.EmailField(required=False, allow_null=True, allow_blank=True, help_text="Email (optional, uses authenticated user if not provided)")
     phone = serializers.CharField(max_length=20, required=False, allow_null=True, allow_blank=True, help_text="Phone number (optional, uses authenticated user if not provided)")
+
+
+class RiskRecommendationRequestSerializer(serializers.Serializer):
+    """Serializer for risk recommendation API request."""
+    risk = serializers.ChoiceField(
+        choices=RiskRecommendation.RISK_CATEGORY_CHOICES,
+        help_text="Risk category: Income Stability, Financial Behavior, Reliability & Tenure, or Protection Readiness"
+    )
+    risk_level = serializers.ChoiceField(
+        choices=[
+            ("High", "High"),
+            ("Medium", "Medium"),
+            ("Low", "Low"),
+            ("🔴 High", "🔴 High"),
+            ("🟠 Medium", "🟠 Medium"),
+            ("🟢 Low", "🟢 Low"),
+        ],
+        help_text="Risk level: High, Medium, or Low (with or without emoji)"
+    )
+
+
+class RiskRecommendationResponseSerializer(serializers.ModelSerializer):
+    """Serializer for risk recommendation API response."""
+    recommended_instruments = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RiskRecommendation
+        fields = [
+            "id",
+            "risk_category",
+            "risk_trigger",
+            "risk_level",
+            "recommended_instruments",
+            "behavioral_tag",
+            "intro_section",
+        ]
+    
+    def get_recommended_instruments(self, obj):
+        """Return recommended instruments as a list."""
+        return obj.get_recommended_instruments_list()
 
 

@@ -340,3 +340,50 @@ class OnboardingProgress(models.Model):
 
     def __str__(self):
         return f"{self.user.username} onboarding progress"
+
+
+class RiskRecommendation(models.Model):
+    """
+    Risk-based product recommendations based on user's risk profile.
+    Maps risk category, risk trigger, and risk level to recommended products.
+    """
+    RISK_CATEGORY_CHOICES = [
+        ("Income Stability", "Income Stability"),
+        ("Financial Behavior", "Financial Behavior"),
+        ("Reliability & Tenure", "Reliability & Tenure"),
+        ("Protection Readiness", "Protection Readiness"),
+    ]
+    
+    RISK_LEVEL_CHOICES = [
+        ("🔴 High", "🔴 High"),
+        ("🟠 Medium", "🟠 Medium"),
+        ("🟢 Low", "🟢 Low"),
+        ("High", "High"),  # Without emoji for API compatibility
+        ("Medium", "Medium"),
+        ("Low", "Low"),
+    ]
+    
+    risk_category = models.CharField(max_length=100, choices=RISK_CATEGORY_CHOICES, db_index=True)
+    risk_trigger = models.CharField(max_length=500, help_text="Description of the risk trigger condition")
+    risk_level = models.CharField(max_length=20, choices=RISK_LEVEL_CHOICES, db_index=True)
+    recommended_instruments = models.TextField(help_text="Comma-separated list of recommended product names")
+    behavioral_tag = models.CharField(max_length=200, help_text="Behavioral tag for categorization")
+    intro_section = models.TextField(help_text="Introductory text to display in the app")
+    order = models.PositiveIntegerField(default=0, help_text="Display order within same risk category and level")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ["risk_category", "risk_level", "order"]
+        indexes = [
+            models.Index(fields=["risk_category", "risk_level"]),
+        ]
+        unique_together = [["risk_category", "risk_trigger", "risk_level"]]
+    
+    def __str__(self):
+        return f"{self.risk_category} - {self.risk_level} - {self.risk_trigger[:50]}"
+    
+    def get_recommended_instruments_list(self):
+        """Return recommended instruments as a list."""
+        return [inst.strip() for inst in self.recommended_instruments.split(",") if inst.strip()]
