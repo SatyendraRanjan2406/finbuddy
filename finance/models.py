@@ -170,6 +170,7 @@ class Product(models.Model):
     digital_verification_availability = models.CharField(max_length=120,null=True, blank=True)
     official_url = models.URLField(null=True, blank=True)
     ufhs_tag = models.PositiveIntegerField(null=True, blank=True)
+    details = models.TextField(null=True, blank=True, help_text="Detailed description of the product and its benefits")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
