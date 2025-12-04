@@ -38,5 +38,37 @@ class PhoneOTP(models.Model):
         return timezone.now() > expiration
 
 
+class UserFaceProfile(models.Model):
+    """
+    Stores AWS Rekognition face data for a user.
+    Backward compatible: Users can login via OTP OR face recognition.
+    """
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name="face_profile",
+        null=True,
+        blank=True,
+    )
+    # AWS Rekognition Face ID (returned when face is indexed)
+    rekognition_face_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
+    # Collection ID where the face is stored (for organization)
+    collection_id = models.CharField(max_length=255, default="finmate-users")
+    # Whether face enrollment is complete
+    is_enrolled = models.BooleanField(default=False)
+    # Timestamps
+    enrolled_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    # Optional: Store phone number for lookup during face login
+    # (allows face login without username if user enrolled with phone)
+    phone_number = models.CharField(max_length=20, null=True, blank=True, db_index=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["phone_number"]),
+            models.Index(fields=["collection_id", "is_enrolled"]),
+        ]
 
+    def __str__(self) -> str:
+        return f"Face profile for {self.user.username if self.user else 'Unknown'} ({'enrolled' if self.is_enrolled else 'pending'})"
