@@ -111,119 +111,56 @@ def calculate_and_store_uhfs(user) -> Dict[str, Any]:
     if not govt:
         govt = GovernmentSchemeEligibility.objects.create(user=user)
 
-    # -------------------------
-    # INCOME STABILITY (I)
-    # weights: A=20%, B=50%, C=25%, D=5%
-    # -------------------------
+    # INCOME STABILITY (I) - weights: A=20%, B=50%, C=25%, D=5%
     monthly_income_map = {
         "5000-10000": 0.1,
         "10001-20000": 0.4,
         "20001-30000": 0.6,
         "30001-50000": 0.9,
         "50000+": 1.0,
-        # alternative labels (in case front-end uses different text)
-        "<10000": 0.1,
-        "10k-20k": 0.4,
-        "20k-30k": 0.6,
-        "30k-50k": 0.9,
-        ">50000": 1.0,
     }
     drop_freq_map = {
         "never": 1.0,
         "once": 0.7,
         "often": 0.4,
-        "every_month": 0.2,
-        "almost_every_month": 0.2,  # Sheet says "Almost every month" = 0.2
+        "almost every month": 0.2,
+        "every month": 0.2,
     }
     working_days_map = {
         "1-2": 0.25,
         "3-4": 0.5,
         "5-6": 0.75,
+        "every day": 1.0,
         "7": 1.0,
-        "everyday": 1.0,
     }
     trend_map = {
         "increased": 1.0,
         "stable": 0.8,
         "decreased": 0.4,
     }
-
     A = monthly_income_map.get((_safe_get(income, "monthly_income_range") or "").strip(), 0.0)
-    
-    # Map income_variability to drop frequency (B)
-    # If income_drop_frequency field doesn't exist, derive from income_variability
-    income_drop_freq = _safe_get(income, "income_drop_frequency", None)
-    if income_drop_freq is None:
-        # Derive from income_variability
-        variability = (_safe_get(income, "income_variability") or "").strip().lower()
-        if variability in ["fixed", "same"]:
-            income_drop_freq = "never"
-        elif variability in ["variable", "fluctuates"]:
-            income_drop_freq = "often"
-        elif variability in ["irregular"]:
-            income_drop_freq = "almost_every_month"
-        else:
-            income_drop_freq = ""
-    B = drop_freq_map.get(str(income_drop_freq).strip().lower(), 0.0)
-    
-    # Map working_days_per_month to working_days_per_week (C)
-    # Convert monthly days to weekly (divide by ~4)
-    working_days_month = _safe_get(income, "working_days_per_month", None)
-    if working_days_month is not None:
-        working_days_week_approx = working_days_month / 4.0
-        if working_days_week_approx <= 2:
-            working_days_week_str = "1-2"
-        elif working_days_week_approx <= 4:
-            working_days_week_str = "3-4"
-        elif working_days_week_approx <= 6:
-            working_days_week_str = "5-6"
-        else:
-            working_days_week_str = "7"
-    else:
-        working_days_week_str = _safe_get(income, "working_days_per_week", "")
-    C = working_days_map.get(str(working_days_week_str).strip().lower(), 0.0)
-    
-    # Income trend (D) - use income_variability as proxy if income_trend doesn't exist
-    income_trend = _safe_get(income, "income_trend", None)
-    if income_trend is None:
-        variability = (_safe_get(income, "income_variability") or "").strip().lower()
-        if variability in ["fixed", "same"]:
-            income_trend = "stable"
-        elif "increase" in variability or "grow" in variability:
-            income_trend = "increased"
-        elif "decrease" in variability or "decline" in variability:
-            income_trend = "decreased"
-        else:
-            income_trend = "stable"
-    D = trend_map.get(str(income_trend).strip().lower(), 0.8)
-
-    # Compute I as specified: 0.20*A + 0.50*B + 0.25*C + 0.05*D
+    B = drop_freq_map.get((_safe_get(income, "income_drop_frequency") or "").strip().lower(), 0.0)
+    C = working_days_map.get((_safe_get(income, "working_days_per_week") or "").strip().lower(), 0.0)
+    D = trend_map.get((_safe_get(income, "income_trend") or "").strip().lower(), 0.8)
     I = (0.20 * A) + (0.50 * B) + (0.25 * C) + (0.05 * D)
 
-    # -------------------------
-    # FINANCIAL BEHAVIOR (F)
-    # weights: A=40%, B=10%, C=30%, D=20%
-    # -------------------------
+    # FINANCIAL BEHAVIOR (F) - weights: A=40%, B=10%, C=30%, D=20%
     savings_amount_map = {
-        "<500": 0.2,
+        "less than 500": 0.2,
         "500-1000": 0.5,
         "1000-3000": 0.8,
-        ">3000": 1.0,
-        "less_than_500": 0.2,
-        "500-1000": 0.5,
+        "more than 3000": 1.0,
     }
     savings_method_map = {
         "bank": 1.0,
         "wallet": 0.8,
         "cash": 0.4,
-        "none": 0.0,
+        "not saving currently": 0.0,
     }
-    # missed EMI: if missed -> 0.0, no missed -> 1.0
     missed_map = {
-        True: 0.0,
-        False: 1.0,
+        "no": 1.0,
         "yes": 0.0,
-        "no": 1.0
+        "not applicable": 1.0,
     }
     bill_map = {
         "always": 1.0,
@@ -231,59 +168,18 @@ def calculate_and_store_uhfs(user) -> Dict[str, Any]:
         "sometimes": 0.5,
         "rarely": 0.2,
     }
-
     FA = savings_amount_map.get((_safe_get(savings, "savings_amount_per_month") or "").strip().lower(), 0.0)
-    
-    # Derive savings_method from banking access if savings_method doesn't exist
-    savings_method = _safe_get(savings, "savings_method", None)
-    if savings_method is None:
-        has_bank = _safe_get(banking, "has_bank_account", False)
-        has_upi = _safe_get(banking, "has_upi_wallet", False)
-        if has_bank:
-            savings_method = "bank"
-        elif has_upi:
-            savings_method = "wallet"
-        else:
-            savings_method = "cash"
-    FB = savings_method_map.get(str(savings_method).strip().lower(), 0.0)
-    
-    # missed EMI field may be boolean or string; try both
-    raw_missed = _safe_get(credit, "missed_payments_6m", None)
-    if isinstance(raw_missed, bool):
-        FC = missed_map.get(raw_missed, 0.0)
-    else:
-        FC = missed_map.get((str(raw_missed) or "").strip().lower(), 0.0)
-    
-    # Use payment_miss_frequency from behavior as proxy for utility_payment_behavior
-    utility_payment_behavior = _safe_get(expenses, "utility_payment_behavior", None)
-    if utility_payment_behavior is None:
-        # Map payment_miss_frequency inversely (never miss = always pay)
-        payment_freq = (_safe_get(behavior, "payment_miss_frequency") or "").strip().lower()
-        if payment_freq == "never":
-            utility_payment_behavior = "always"
-        elif payment_freq == "rarely":
-            utility_payment_behavior = "mostly"
-        elif payment_freq == "sometimes":
-            utility_payment_behavior = "sometimes"
-        else:
-            utility_payment_behavior = "rarely"
-    FD = bill_map.get(str(utility_payment_behavior).strip().lower(), 0.75)
-
+    FB = savings_method_map.get((_safe_get(savings, "savings_method") or "").strip().lower(), 0.0)
+    FC = missed_map.get((_safe_get(credit, "missed_payments_3m") or "").strip().lower(), 1.0)
+    FD = bill_map.get((_safe_get(expenses, "bill_payment_timeliness") or "").strip().lower(), 0.5)
     F = (0.40 * FA) + (0.10 * FB) + (0.30 * FC) + (0.20 * FD)
 
-    # -------------------------
-    # RELIABILITY & TENURE (R)
-    # weights: A=40%, B=30%, C=20%, D=10%
-    # -------------------------
+    # RELIABILITY & TENURE (R) - weights: A=40%, B=30%, C=20%, D=10%
     tenure_map = {
-        "<3": 0.25,
-        "3-6": 0.5,
-        "6-12": 0.75,
-        ">12": 1.0,
-        "less_than_3_months": 0.25,
-        "3-6_months": 0.5,
-        "6-12_months": 0.75,
-        "more_than_1_year": 1.0,
+        "less than 3 months": 0.25,
+        "3-6 months": 0.5,
+        "6-12 months": 0.75,
+        "more than 1 year": 1.0,
     }
     active_days_map = {
         "1-2": 0.25,
@@ -297,132 +193,40 @@ def calculate_and_store_uhfs(user) -> Dict[str, Any]:
         "often": 0.2,
     }
     rating_map = {
-        1: 0.25,
-        2: 0.5,
-        3: 0.75,
-        4: 0.9,
-        5: 1.0,
+        "1": 0.25,
+        "2": 0.5,
+        "3": 0.75,
+        "4": 0.9,
+        "5": 1.0,
     }
-
-    # Platform tenure - use default if not available
-    platform_tenure = _safe_get(income, "platform_tenure_bucket", None)
-    if platform_tenure is None:
-        platform_tenure = "3-6"  # Default to medium
-    RA = tenure_map.get(str(platform_tenure).strip().lower(), 0.5)
-    
-    # Active days - derive from working_days_per_month if active_days doesn't exist
-    active_days = _safe_get(income, "active_days", None)
-    if active_days is None:
-        working_days_month = _safe_get(income, "working_days_per_month", None)
-        if working_days_month is not None:
-            working_days_week_approx = working_days_month / 4.0
-            if working_days_week_approx <= 2:
-                active_days = "1-2"
-            elif working_days_week_approx <= 4:
-                active_days = "3-4"
-            elif working_days_week_approx <= 6:
-                active_days = "5-6"
-            else:
-                active_days = "7"
-        else:
-            active_days = "3-4"  # Default
-    RB = active_days_map.get(str(active_days).strip().lower(), 0.5)
-    
-    # Cancellation rate - use default if not available
-    cancellation_rate = _safe_get(income, "cancellation_rate", None)
-    if cancellation_rate is None:
-        cancellation_rate = "rarely"  # Default
-    RC = cancel_map.get(str(cancellation_rate).strip().lower(), 1.0)
-    
-    # Customer rating - use digital_comfort_level as proxy if customer_rating doesn't exist
-    raw_rating = _safe_get(income, "customer_rating", None)
-    if raw_rating is None:
-        raw_rating = _safe_get(behavior, "digital_comfort_level", None)
-    try:
-        RD = rating_map.get(int(raw_rating), 0.5) if raw_rating is not None else 0.5
-    except (ValueError, TypeError):
-        RD = rating_map.get(str(raw_rating).strip(), 0.5) if raw_rating else 0.5
-
+    RA = tenure_map.get((_safe_get(income, "platform_tenure") or "").strip().lower(), 0.5)
+    RB = active_days_map.get((_safe_get(income, "active_days_per_week") or "").strip().lower(), 0.5)
+    RC = cancel_map.get((_safe_get(income, "cancellation_frequency") or "").strip().lower(), 1.0)
+    RD = rating_map.get(str(_safe_get(income, "customer_rating", "3")).strip(), 0.5)
     R = (0.40 * RA) + (0.30 * RB) + (0.20 * RC) + (0.10 * RD)
 
-    # -------------------------
-    # PROTECTION READINESS (P)
-    # Weights: A=30%, B=30%, C=30%, D=10%
-    # -------------------------
+    # PROTECTION READINESS (P) - weights: A=30%, B=30%, C=30%, D=10%
     insurance_map = {
-        True: 1.0,
-        False: 0.0,
         "yes": 1.0,
         "no": 0.0,
-        "not_sure": 0.3,
+        "not sure": 0.3,
     }
     emergency_map = {
         "immediately": 1.0,
-        "1week": 0.8,
-        "1 month": 0.4,
-        "1month": 0.4,
-        "cannot": 0.0,
-        "cannot_manage": 0.0,
+        "within 1 week": 0.8,
+        "within 1 month": 0.4,
+        "cannot manage": 0.0,
     }
     emergency_fund_map = {
         "0-500": 0.2,
-        "500-1000": 0.4,
-        "501-1000": 0.4,  # Alternative format
-        "1000-5000": 0.7,
-        "1001-5000": 0.7,  # Alternative format
+        "501-1000": 0.4,
+        "1001-5000": 0.7,
         "5000+": 1.0,
     }
-
-    # Check has_health_insurance - parse from has_insurance field
-    has_health_insurance = _safe_get(savings, "has_health_insurance", None)
-    if has_health_insurance is None:
-        insurance_str = _safe_get(savings, "has_insurance", "")
-        if insurance_str:
-            has_health_insurance = "health" in str(insurance_str).lower()
-        else:
-            has_health_insurance = False
-    if isinstance(has_health_insurance, str):
-        PA = insurance_map.get(has_health_insurance.strip().lower(), 0.0)
-    else:
-        PA = insurance_map.get(has_health_insurance, 0.0)
-    
-    # Check has_life_cover - parse from has_insurance field
-    has_life_cover = _safe_get(savings, "has_life_cover", None)
-    if has_life_cover is None:
-        insurance_str = _safe_get(savings, "has_insurance", "")
-        if insurance_str:
-            has_life_cover = "life" in str(insurance_str).lower()
-        else:
-            has_life_cover = False
-    if isinstance(has_life_cover, str):
-        PB = insurance_map.get(has_life_cover.strip().lower(), 0.0)
-    else:
-        PB = insurance_map.get(has_life_cover, 0.0)
-    
-    # Emergency capability - use default if not available
-    emergency_capability = _safe_get(savings, "emergency_capability", None)
-    if emergency_capability is None:
-        # Derive from regular_savings_habit
-        if _safe_get(savings, "regular_savings_habit", False):
-            emergency_capability = "1week"
-        else:
-            emergency_capability = "1month"
-    PC = emergency_map.get(str(emergency_capability).strip().lower(), 0.4)
-    
-    # Emergency saving amount - use savings_amount_per_month as proxy
-    emergency_saving_amount = _safe_get(savings, "emergency_saving_amount", None)
-    if emergency_saving_amount is None:
-        savings_amt = (_safe_get(savings, "savings_amount_per_month") or "").strip().lower()
-        if "<500" in savings_amt or "less_than_500" in savings_amt:
-            emergency_saving_amount = "0-500"
-        elif "500-1000" in savings_amt or "500" in savings_amt:
-            emergency_saving_amount = "500-1000"
-        elif "1000" in savings_amt or "3000" in savings_amt:
-            emergency_saving_amount = "1000-5000"
-        else:
-            emergency_saving_amount = "5000+"
-    PD = emergency_fund_map.get(str(emergency_saving_amount).strip().lower(), 0.2)
-
+    PA = insurance_map.get((_safe_get(savings, "has_health_insurance") or "").strip().lower(), 0.0)
+    PB = insurance_map.get((_safe_get(savings, "has_life_cover") or "").strip().lower(), 0.0)
+    PC = emergency_map.get((_safe_get(savings, "emergency_expense_capability") or "").strip().lower(), 0.0)
+    PD = emergency_fund_map.get((_safe_get(savings, "emergency_fund_amount") or "").strip().lower(), 0.2)
     P = (0.30 * PA) + (0.30 * PB) + (0.30 * PC) + (0.10 * PD)
 
     # -------------------------
