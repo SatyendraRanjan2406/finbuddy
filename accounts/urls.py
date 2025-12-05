@@ -7,6 +7,7 @@ from accounts.views import (
     FaceEnrollmentView,
     FaceLoginView,
 )
+from accounts.views_delete_user import DeleteUserCascadeView
 
 urlpatterns = [
     # OTP-based authentication (existing, backward compatible)
@@ -19,5 +20,8 @@ urlpatterns = [
     
     # Token refresh (works for both OTP and face login)
     path("token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
+    # Cascade delete user by phone
+    path("delete-user-cascade/", DeleteUserCascadeView.as_view(), name="delete-user-cascade"),
 ]
 
