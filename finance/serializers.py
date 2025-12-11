@@ -42,6 +42,36 @@ class OTPVerifySerializer(serializers.Serializer):
 
 
 class PersonalDemographicSerializer(serializers.ModelSerializer):
+    # Mapping for common variations to correct values
+    OCCUPATION_MAPPING = {
+        "Small Retailer": "Small retailer",
+        "small retailer": "Small retailer",
+        "SMALL RETAILER": "Small retailer",
+        "Gig Worker": "Gig worker",
+        "gig worker": "Gig worker",
+        "GIG WORKER": "Gig worker",
+        "gigworker": "Gig worker",
+    }
+    
+    def validate_occupation_type(self, value):
+        """Normalize occupation_type to match model choices."""
+        if value:
+            # Check if it's already a valid choice
+            valid_choices = [choice[0] for choice in PersonalDemographic.OCCUPATION_CHOICES]
+            if value in valid_choices:
+                return value
+            
+            # Try to map common variations
+            normalized = self.OCCUPATION_MAPPING.get(value, value)
+            if normalized in valid_choices:
+                return normalized
+            
+            # If still not valid, raise error with helpful message
+            raise serializers.ValidationError(
+                f'Invalid choice: "{value}". Valid choices are: {", ".join(valid_choices)}'
+            )
+        return value
+    
     class Meta:
         model = PersonalDemographic
         fields = [

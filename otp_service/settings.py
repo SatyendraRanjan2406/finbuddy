@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "finance",
     "training",
     "aichat",
+    "ai_chat_watson",
 ]
 
 # Custom User Model
