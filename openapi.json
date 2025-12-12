@@ -1,0 +1,1105 @@
+openapi: 3.0.3
+info:
+  title: FinMate Watson Chat API
+  version: 1.0.0
+  description: Watson-backed chat endpoints
+paths:
+  /api/ai_chat_watson/watson/chat/:
+    post:
+      operationId: ai_chat_watson_watson_chat_create
+      tags:
+      - ai_chat_watson
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/ai_chat_watson/watson/init/:
+    get:
+      operationId: ai_chat_watson_watson_init_retrieve
+      tags:
+      - ai_chat_watson
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/aichat/finmate/chat/:
+    post:
+      operationId: aichat_finmate_chat_create
+      description: |-
+        POST /api/aichat/finmate/chat/
+        Chat with FinMate, with UHFS + product context and optional file attachments.
+      tags:
+      - aichat
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/aichat/finmate/init/:
+    get:
+      operationId: aichat_finmate_init_retrieve
+      description: |-
+        GET /api/aichat/finmate/init/
+        Returns UHFS breakdown + suggested products + creates a chat session.
+      tags:
+      - aichat
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/aichat/voice/ask:
+    post:
+      operationId: aichat_voice_ask_create
+      description: |-
+        POST /api/aichat/voice/ask
+        Form-data: audio=@sample_voice.wav
+
+        - Uploads audio to S3
+        - Runs Amazon Transcribe with auto language detection
+        - Generates FinMate advice using the same logic as /finmate/chat/
+        - Synthesizes the reply using Polly in the detected/requested language
+        - Returns MP3 audio with helpful headers (text, language, session id)
+      tags:
+      - aichat
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/delete-user-cascade/:
+    post:
+      operationId: auth_delete_user_cascade_create
+      description: |-
+        POST /api/auth/delete-user-cascade/
+
+        Completely delete a user and all related records from all tables.
+        Admin-only endpoint.
+
+        Request body:
+        {
+            "identifier": "username_or_phone_or_id",
+            "skip_aws": false  // optional, skip AWS Rekognition deletion
+        }
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/face/enroll/:
+    post:
+      operationId: auth_face_enroll_create
+      description: |-
+        POST /api/auth/face/enroll/
+        Enroll user's face for facial recognition login.
+        User must be authenticated (via OTP) first.
+        Backward compatible: Users can still use OTP login even after enrolling face.
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/face/login/:
+    post:
+      operationId: auth_face_login_create
+      description: |-
+        POST /api/auth/face/login/
+        Login using facial recognition.
+        Backward compatible: Users can still use OTP login if they prefer.
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/send-otp/:
+    post:
+      operationId: auth_send_otp_create
+      description: POST /api/auth/send-otp
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: |-
+        Takes a refresh type JSON web token and returns an access type JSON web
+        token if the refresh token is valid.
+      tags:
+      - auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefresh'
+        required: true
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefresh'
+          description: ''
+  /api/auth/verify-otp/:
+    post:
+      operationId: auth_verify_otp_create
+      description: POST /api/auth/verify-otp
+      tags:
+      - auth
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/applications/{application_id}/admin-action/:
+    post:
+      operationId: finance_applications_admin_action_create
+      description: |-
+        Admin approves the application.
+        Body: { "action": "approve", "comments": "..." } or {"action": "reject", "comments": "..."}
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/applications/{application_id}/status/:
+    get:
+      operationId: finance_applications_status_retrieve
+      description: GET /api/applications/<id>/status/
+      parameters:
+      - in: path
+        name: application_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/apply/:
+    post:
+      operationId: finance_apply_create
+      description: |-
+        User applies to buy a product. Files (id_proof, address_proof, video_verification)
+        uploaded via multipart/form-data.
+        This creates a ProductPurchase and sends an OTP to verify the phone.
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/apply/verify-otp/:
+    post:
+      operationId: finance_apply_verify_otp_create
+      description: |-
+        Verify OTP. Body: { "application_id": <int>, "otp": "123456" }
+        On success, mark otp_verified True and enqueue OCR & KYC tasks.
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/dashboard/:
+    get:
+      operationId: finance_dashboard_retrieve
+      description: |-
+        GET /api/finance/dashboard/
+        Returns comprehensive user dashboard data including profile, UHFS score, and other relevant information.
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/financial-behavior/:
+    get:
+      operationId: finance_financial_behavior_retrieve
+      description: |-
+        GET /api/finance/financial-behavior/ - Get financial behavior info (Q16-19)
+        POST /api/finance/financial-behavior/ - Create or update financial behavior info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_financial_behavior_create
+      description: |-
+        GET /api/finance/financial-behavior/ - Get financial behavior info (Q16-19)
+        POST /api/finance/financial-behavior/ - Create or update financial behavior info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_financial_behavior_update
+      description: |-
+        GET /api/finance/financial-behavior/ - Get financial behavior info (Q16-19)
+        POST /api/finance/financial-behavior/ - Create or update financial behavior info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_financial_behavior_partial_update
+      description: |-
+        GET /api/finance/financial-behavior/ - Get financial behavior info (Q16-19)
+        POST /api/finance/financial-behavior/ - Create or update financial behavior info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/income-employment/:
+    get:
+      operationId: finance_income_employment_retrieve
+      description: |-
+        GET /api/finance/income-employment/ - Get income employment info (Q11)
+        POST /api/finance/income-employment/ - Create or update income employment info
+        PUT /api/finance/income-employment/ - Update income employment info
+        PATCH /api/finance/income-employment/ - Partial update income employment info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_income_employment_create
+      description: |-
+        GET /api/finance/income-employment/ - Get income employment info (Q11)
+        POST /api/finance/income-employment/ - Create or update income employment info
+        PUT /api/finance/income-employment/ - Update income employment info
+        PATCH /api/finance/income-employment/ - Partial update income employment info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_income_employment_update
+      description: |-
+        GET /api/finance/income-employment/ - Get income employment info (Q11)
+        POST /api/finance/income-employment/ - Create or update income employment info
+        PUT /api/finance/income-employment/ - Update income employment info
+        PATCH /api/finance/income-employment/ - Partial update income employment info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_income_employment_partial_update
+      description: |-
+        GET /api/finance/income-employment/ - Get income employment info (Q11)
+        POST /api/finance/income-employment/ - Create or update income employment info
+        PUT /api/finance/income-employment/ - Update income employment info
+        PATCH /api/finance/income-employment/ - Partial update income employment info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/income-stability/:
+    get:
+      operationId: finance_income_stability_retrieve
+      description: |-
+        GET /api/finance/income-stability/ - Get income stability info (Q12-15)
+        POST /api/finance/income-stability/ - Create or update income stability info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_income_stability_create
+      description: |-
+        GET /api/finance/income-stability/ - Get income stability info (Q12-15)
+        POST /api/finance/income-stability/ - Create or update income stability info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_income_stability_update
+      description: |-
+        GET /api/finance/income-stability/ - Get income stability info (Q12-15)
+        POST /api/finance/income-stability/ - Create or update income stability info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_income_stability_partial_update
+      description: |-
+        GET /api/finance/income-stability/ - Get income stability info (Q12-15)
+        POST /api/finance/income-stability/ - Create or update income stability info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/partner/webhook/:
+    post:
+      operationId: finance_partner_webhook_create
+      description: |-
+        Verify HMAC signature, process payload.
+        Clients must set X-Signature: sha256=<hex>
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/personal-demographic/:
+    get:
+      operationId: finance_personal_demographic_retrieve
+      description: |-
+        GET /api/finance/personal-demographic/ - Get personal demographic info
+        POST /api/finance/personal-demographic/ - Create or update personal demographic info
+        PUT /api/finance/personal-demographic/ - Update personal demographic info
+        PATCH /api/finance/personal-demographic/ - Partial update personal demographic info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_personal_demographic_create
+      description: |-
+        GET /api/finance/personal-demographic/ - Get personal demographic info
+        POST /api/finance/personal-demographic/ - Create or update personal demographic info
+        PUT /api/finance/personal-demographic/ - Update personal demographic info
+        PATCH /api/finance/personal-demographic/ - Partial update personal demographic info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_personal_demographic_update
+      description: |-
+        GET /api/finance/personal-demographic/ - Get personal demographic info
+        POST /api/finance/personal-demographic/ - Create or update personal demographic info
+        PUT /api/finance/personal-demographic/ - Update personal demographic info
+        PATCH /api/finance/personal-demographic/ - Partial update personal demographic info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_personal_demographic_partial_update
+      description: |-
+        GET /api/finance/personal-demographic/ - Get personal demographic info
+        POST /api/finance/personal-demographic/ - Create or update personal demographic info
+        PUT /api/finance/personal-demographic/ - Update personal demographic info
+        PATCH /api/finance/personal-demographic/ - Partial update personal demographic info
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/populate/:
+    post:
+      operationId: finance_populate_create
+      description: Wrapper for populate function to handle missing dependencies gracefully
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/:
+    get:
+      operationId: finance_products_retrieve
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/{id}/:
+    get:
+      operationId: finance_products_retrieve_2
+      description: GET /api/finance/products/<id>/ - Get single product details by
+        ID
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/advanced-search/:
+    get:
+      operationId: finance_products_advanced_search_retrieve
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/by-name/{name}/:
+    get:
+      operationId: finance_products_by_name_retrieve
+      parameters:
+      - in: path
+        name: name
+        schema:
+          type: string
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/fuzzy/:
+    get:
+      operationId: finance_products_fuzzy_retrieve
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/search/:
+    get:
+      operationId: finance_products_search_retrieve
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/suggest/:
+    get:
+      operationId: finance_products_suggest_retrieve
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/products/suggested/:
+    post:
+      operationId: finance_products_suggested_create
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/finance/protection-readiness/:
+    get:
+      operationId: finance_protection_readiness_retrieve
+      description: |-
+        GET /api/finance/protection-readiness/ - Get protection readiness info (Q24-27)
+        POST /api/finance/protection-readiness/ - Create or update protection readiness info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_protection_readiness_create
+      description: |-
+        GET /api/finance/protection-readiness/ - Get protection readiness info (Q24-27)
+        POST /api/finance/protection-readiness/ - Create or update protection readiness info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_protection_readiness_update
+      description: |-
+        GET /api/finance/protection-readiness/ - Get protection readiness info (Q24-27)
+        POST /api/finance/protection-readiness/ - Create or update protection readiness info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_protection_readiness_partial_update
+      description: |-
+        GET /api/finance/protection-readiness/ - Get protection readiness info (Q24-27)
+        POST /api/finance/protection-readiness/ - Create or update protection readiness info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/purchase/:
+    get:
+      operationId: finance_purchase_retrieve
+      description: |-
+        GET /api/finance/purchase/
+        Get all product purchases for the authenticated user.
+
+        Query Parameters (optional):
+        - status: Filter by status (e.g., ?status=INITIATED)
+        - product_id: Filter by product ID (e.g., ?product_id=1)
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/purchase/{purchase_id}/:
+    get:
+      operationId: finance_purchase_retrieve_2
+      description: |-
+        GET /api/finance/purchase/<purchase_id>/
+        Get detailed information about a specific product purchase for the authenticated user.
+      parameters:
+      - in: path
+        name: purchase_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/purchase/{purchase_id}/complete/:
+    post:
+      operationId: finance_purchase_complete_create
+      description: |-
+        Complete product purchase - updates status to SUCCESS for ProductPurchase, UserProduct, and UserPremiumPayment.
+
+        This endpoint should be called after payment is confirmed.
+      parameters:
+      - in: path
+        name: purchase_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/purchase/initiate/:
+    post:
+      operationId: finance_purchase_initiate_create
+      description: |-
+        Initiate product purchase - creates records in ProductPurchase, UserProduct, and UserPremiumPayment
+        with status = INITIATED.
+
+        Accepts both JSON and multipart/form-data (for file uploads).
+
+        Body (JSON or form-data): {
+            "product_id": <int>,
+            "premium_amount": <decimal>,
+            "premium_frequency": "MONTHLY|QUARTERLY|HALF_YEARLY|YEARLY",
+            "tenure_years": <int> (optional),
+            "auto_renew": <bool> (default: True),
+            "policy_number": <string> (optional),
+            "maturity_date": "YYYY-MM-DD" (optional),
+            "next_premium_due": "YYYY-MM-DD" (optional),
+            "id_proof": <file> (optional),
+            "address_proof": <file> (optional),
+            "video_verification": <file> (optional),
+            "full_name": <string> (optional),
+            "email": <email> (optional),
+            "phone": <string> (optional)
+        }
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/reliability-tenure/:
+    get:
+      operationId: finance_reliability_tenure_retrieve
+      description: |-
+        GET /api/finance/reliability-tenure/ - Get reliability & tenure info (Q20-23)
+        POST /api/finance/reliability-tenure/ - Create or update reliability & tenure info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_reliability_tenure_create
+      description: |-
+        GET /api/finance/reliability-tenure/ - Get reliability & tenure info (Q20-23)
+        POST /api/finance/reliability-tenure/ - Create or update reliability & tenure info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: finance_reliability_tenure_update
+      description: |-
+        GET /api/finance/reliability-tenure/ - Get reliability & tenure info (Q20-23)
+        POST /api/finance/reliability-tenure/ - Create or update reliability & tenure info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    patch:
+      operationId: finance_reliability_tenure_partial_update
+      description: |-
+        GET /api/finance/reliability-tenure/ - Get reliability & tenure info (Q20-23)
+        POST /api/finance/reliability-tenure/ - Create or update reliability & tenure info
+        All questions on one page
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/risk-recommendation/:
+    post:
+      operationId: finance_risk_recommendation_create
+      description: "POST /api/finance/risk-recommendation/\n\nGet product recommendations
+        based on risk category and risk level.\n\nRequest Body:\n{\n    \"risk\":
+        \"Income Stability\" | \"Financial Behavior\" | \"Reliability & Tenure\" |
+        \"Protection Readiness\",\n    \"risk_level\": \"High\" | \"Medium\" | \"Low\"
+        (or with emoji: \"\U0001F534 High\", \"\U0001F7E0 Medium\", \"\U0001F7E2 Low\")\n}\n\nResponse:\n{\n
+        \   \"risk_category\": \"Income Stability\",\n    \"risk_trigger\": \"Income
+        volatility > 40% or <15 days active/month\",\n    \"risk_level\": \"\U0001F534
+        High\",\n    \"recommended_instruments\": [\"PMMY (Mudra Loan)\", \"PM SVANidhi\",
+        \"Post Office RD\", ...],\n    \"behavioral_tag\": \"Manage Income Volatility
+        / Emergency Corpus\",\n    \"intro_section\": \"Your income is fluctuating
+        right now...\"\n}"
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/finance/uhfs-score/:
+    get:
+      operationId: finance_uhfs_score_retrieve
+      description: |-
+        GET /api/finance/uhfs-score/ - Get current UHFS score
+        POST /api/finance/uhfs-score/ - Calculate and update UHFS score
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: finance_uhfs_score_create
+      description: |-
+        Calculate and store UHFS score based on user's financial data.
+        Returns detailed breakdown of the calculation.
+      tags:
+      - finance
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/schema/:
+    get:
+      operationId: schema_retrieve
+      description: |-
+        OpenApi3 schema for this API. Format can be selected via content negotiation.
+
+        - YAML: application/vnd.oai.openapi
+        - JSON: application/vnd.oai.openapi+json
+      parameters:
+      - in: query
+        name: format
+        schema:
+          type: string
+          enum:
+          - json
+          - yaml
+      - in: query
+        name: lang
+        schema:
+          type: string
+          enum:
+          - af
+          - ar
+          - ar-dz
+          - ast
+          - az
+          - be
+          - bg
+          - bn
+          - br
+          - bs
+          - ca
+          - ckb
+          - cs
+          - cy
+          - da
+          - de
+          - dsb
+          - el
+          - en
+          - en-au
+          - en-gb
+          - eo
+          - es
+          - es-ar
+          - es-co
+          - es-mx
+          - es-ni
+          - es-ve
+          - et
+          - eu
+          - fa
+          - fi
+          - fr
+          - fy
+          - ga
+          - gd
+          - gl
+          - he
+          - hi
+          - hr
+          - hsb
+          - hu
+          - hy
+          - ia
+          - id
+          - ig
+          - io
+          - is
+          - it
+          - ja
+          - ka
+          - kab
+          - kk
+          - km
+          - kn
+          - ko
+          - ky
+          - lb
+          - lt
+          - lv
+          - mk
+          - ml
+          - mn
+          - mr
+          - ms
+          - my
+          - nb
+          - ne
+          - nl
+          - nn
+          - os
+          - pa
+          - pl
+          - pt
+          - pt-br
+          - ro
+          - ru
+          - sk
+          - sl
+          - sq
+          - sr
+          - sr-latn
+          - sv
+          - sw
+          - ta
+          - te
+          - tg
+          - th
+          - tk
+          - tr
+          - tt
+          - udm
+          - ug
+          - uk
+          - ur
+          - uz
+          - vi
+          - zh-hans
+          - zh-hant
+      tags:
+      - schema
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/vnd.oai.openapi:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/vnd.oai.openapi+json:
+              schema:
+                type: object
+                additionalProperties: {}
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/training/admin/bulk-questions/:
+    post:
+      operationId: training_admin_bulk_questions_create
+      description: |-
+        POST /api/training/admin/bulk-questions/
+        Admin-only endpoint to add multiple questions (and options) to a section.
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/training/import/:
+    post:
+      operationId: training_import_create
+      description: |-
+        POST /api/training/import/
+        Import training sections, questions, and options from Google Sheets.
+        Requires admin authentication.
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/training/progress/:
+    get:
+      operationId: training_progress_retrieve
+      description: |-
+        GET /api/training/progress/
+        Get training progress for the authenticated user
+
+        POST /api/training/progress/
+        Update training progress (start, mark video completed, etc.)
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: training_progress_create
+      description: Update training progress
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/training/sections/:
+    get:
+      operationId: training_sections_retrieve
+      description: |-
+        GET /api/training/sections/
+        Get list of all training sections (without questions for performance)
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/training/sections/{id}/:
+    get:
+      operationId: training_sections_retrieve_2
+      description: |-
+        GET /api/training/sections/<id>/
+        Get detailed information about a specific training section including all questions and options
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/training/submit-answer/:
+    post:
+      operationId: training_submit_answer_create
+      description: |-
+        POST /api/training/submit-answer/
+        Submit answer to a training question
+      tags:
+      - training
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+components:
+  schemas:
+    TokenRefresh:
+      type: object
+      properties:
+        access:
+          type: string
+          readOnly: true
+        refresh:
+          type: string
+      required:
+      - access
+      - refresh
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
